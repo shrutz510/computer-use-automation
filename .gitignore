@@ -1,0 +1,6 @@
+GUIDE.md
+*.pdf
+.env
+__pycache__/
+.venv/
+*.pyc
