@@ -69,10 +69,17 @@ def create_app(fault: str | None = None) -> Flask:
 
     @app.context_processor
     def inject_notice():
-        show = app.config["FAULT"] == "interstitial" and not session.get("notice_shown")
-        if show:
-            session["notice_shown"] = True
+        # On every signed-in content screen until the operator acknowledges it server side,
+        # like the real thing. Never the sign-on page, nor the frameset/nav shells.
+        show = (app.config["FAULT"] == "interstitial" and session.get("user")
+                and not request.path.startswith(OPEN_PATHS) and request.path not in ("/", "/nav")
+                and not session.get("notice_acked"))
         return {"show_notice": show}
+
+    @app.route("/ack", methods=["POST"])
+    def acknowledge():
+        session["notice_acked"] = True
+        return redirect(request.form.get("next") or "/members/search")
 
     # ---- auth ---------------------------------------------------------------
 

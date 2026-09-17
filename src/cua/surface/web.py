@@ -162,6 +162,13 @@ class WebSurface:
         self.page.goto(self.base_url + route)
         self._settle()
 
+    def reload(self) -> None:
+        self.page.reload()
+        self._settle()
+
+    def wait_ms(self, ms: int) -> None:
+        self.page.wait_for_timeout(ms)
+
     def _on_request_start(self, _request) -> None:
         self._inflight += 1
         self._last_net = time.monotonic()

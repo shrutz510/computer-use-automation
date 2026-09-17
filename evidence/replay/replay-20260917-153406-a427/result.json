@@ -1,0 +1,16 @@
+{
+  "run_id": "replay-20260917-153406-a427",
+  "capability": "legacycore.member_savings_balance",
+  "version": 1,
+  "evidence": "evidence/replay/replay-20260917-153406-a427",
+  "steps_completed": 0,
+  "recovered": [],
+  "strategies_used": {},
+  "status": "failed",
+  "code": "APP_ERROR",
+  "step": "s1_type_member_id",
+  "expected": "a normal application screen",
+  "observed": "Application Error An unexpected error has occurred while processing your request. Reference: ERR-5003 \u00b7 CoreServ 4.2",
+  "screenshot": "screenshots/004-s1_type_member_id-app_error.png",
+  "retryable": true
+}

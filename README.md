@@ -70,7 +70,37 @@ evidence/discovery/<run_id>/
   screenshots/        one per action, with sensitive fields blacked out
 ```
 
-A recorded run is in [`evidence/discovery/`](evidence/discovery/).
+On success it also records the capability to
+`capabilities/<app>/<name>/v<N>.yaml` (add `--no-record` to skip) and copies it into the run
+directory. `cua record --trace <path>` rebuilds one from an older trace, and `cua schema`
+exports the artifact JSON Schema that a calling agent would read.
+
+## Demo: replay, with no LLM in the loop
+
+```bash
+CAP=capabilities/legacycore/member_savings_balance/v1.yaml
+
+.venv/bin/cua replay $CAP --input member_id=10023     # success + typed outputs
+.venv/bin/cua replay $CAP --input member_id=99999     # business outcome: MEMBER_NOT_FOUND
+.venv/bin/cua replay $CAP --input member_id=123       # rejected against the input contract
+.venv/bin/cua replay $CAP --input member_id=10023 --inject-fault interstitial     # recovered
+.venv/bin/cua replay $CAP --input member_id=10023 --inject-fault session_timeout  # recovered
+.venv/bin/cua replay $CAP --input member_id=10023 --inject-fault slow             # waited out
+.venv/bin/cua replay $CAP --input member_id=10023 --inject-fault app_error        # hard failure
+```
+
+Replay needs no API key. `--inject-fault` is a test hook that arms a mock-app fault *after*
+sign-in, so the fault lands mid-run; `--headed` shows the browser.
+
+The result is one of four shapes, discriminated on `status`: `success` (with typed outputs),
+`business_outcome` (a legitimate answer such as "no such member", with its code), `failed`
+(with the step, what was expected, what was observed and a screenshot), or `escalated` (a human
+must act). Recoverable conditions are not a status: they are handled inside the run and listed
+under `recovered`. Exit codes: 0 for success or a business outcome, 1 for a failure, 2 for an
+escalation.
+
+Recorded runs for every one of those branches, and the discovery run, are indexed in
+[`evidence/README.md`](evidence/README.md).
 
 ## Tests
 
@@ -78,14 +108,19 @@ A recorded run is in [`evidence/discovery/`](evidence/discovery/).
 .venv/bin/pytest -q
 ```
 
-Covers the target app's flows and faults, redaction, and locator synthesis/resolution against
-hostile fixture HTML.
+Covers the target app's flows and faults, redaction, locator synthesis/resolution against
+hostile fixture HTML, trace → artifact recording, and replay against the live app for every
+branch of the taxonomy (success, business outcome, recovered interstitial, recovered session
+expiry, hard failure, broken locator, escalation on an irreversible step). No API key needed.
 
 ## Status
 
-Built: mock target app, the Surface abstraction (Playwright, frame-aware), the LLM
-observe → decide → act discovery loop with stuck detection, redaction, and run evidence.
+Built: the mock target app; the Surface abstraction (Playwright, frame-aware); the LLM
+observe → decide → act discovery loop with stuck detection; the recorder and the versioned
+capability artifact; deterministic replay with the error taxonomy, condition-based waits and
+drift signals; redaction and run evidence.
 
-Next: the recorder (trace → capability artifact), deterministic replay with the error taxonomy,
-the policy allowlist, and human escalation/handoff. See `REPORT.md` for the design and the
-deliberate cuts.
+Next: the policy allowlist enforced in the surface layer, and human escalation/handoff (pause,
+take over the live session, resume). Replay already refuses irreversible steps without
+approval, which is the seam those hook into. See `REPORT.md` for the design and the deliberate
+cuts.

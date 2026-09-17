@@ -90,9 +90,11 @@ def test_session_timeout_is_one_shot(app, client):
     assert client.get("/members/search").status_code == 200
 
 
-def test_interstitial_shown_once_per_session(app, client):
+def test_interstitial_blocks_until_acknowledged(app, client):
     app.config["FAULT"] = "interstitial"
     assert "System Notice" in text(client.get("/members/search"))
+    assert "System Notice" in text(client.get("/members/10023"))  # still there: not dismissed yet
+    client.post("/ack", data={"next": "/members/search"})
     assert "System Notice" not in text(client.get("/members/search"))
 
 

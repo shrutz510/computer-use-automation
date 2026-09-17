@@ -1,0 +1,23 @@
+{
+  "run_id": "replay-20260917-153530-bbf5",
+  "capability": "legacycore.member_savings_balance",
+  "version": 1,
+  "evidence": "evidence/replay/replay-20260917-153530-bbf5",
+  "steps_completed": 3,
+  "recovered": [
+    {
+      "handler": "system_notice",
+      "step": "s1_type_member_id",
+      "detail": ""
+    }
+  ],
+  "strategies_used": {
+    "s1_type_member_id": "label#0",
+    "s2_click_search": "role#0",
+    "s3_extract_savings_balance": "cell#0"
+  },
+  "status": "success",
+  "outputs": {
+    "savings_balance": "10527.64"
+  }
+}

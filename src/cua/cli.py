@@ -3,6 +3,8 @@
 import argparse
 import json
 import sys
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -15,6 +17,7 @@ from cua.artifact import store
 from cua.evidence import RunLog
 from cua.recorder import derive_name, record
 from cua.redaction import Redactor
+from cua.replay import ReplayExecutor
 from cua.session import FormLogin
 from cua.surface.web import WebSurface
 
@@ -57,6 +60,50 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0 if trace.status == "success" else 1
 
 
+EXIT_CODES = {"success": 0, "business_outcome": 0, "failed": 1, "escalated": 2}
+
+
+def _set_target_fault(base_url: str, name: str) -> None:
+    """Test hook for generating evidence: arm one of the mock app's faults mid-run."""
+    data = urllib.parse.urlencode({"name": name}).encode()
+    with urllib.request.urlopen(f"{base_url.rstrip('/')}/admin/fault", data=data, timeout=5) as resp:
+        resp.read()
+
+
+def cmd_replay(args: argparse.Namespace) -> int:
+    artifact = store.load(Path(args.artifact))
+    inputs: dict[str, str] = {}
+    for pair in args.input:
+        if "=" not in pair:
+            raise SystemExit(f"--input expects name=value, got {pair!r}")
+        name, value = pair.split("=", 1)
+        inputs[name] = value
+
+    redactor = Redactor()
+    log = RunLog(Path(args.evidence), "replay", redactor)
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=not args.headed)
+        page = browser.new_context(viewport={"width": 1280, "height": 800}).new_page()
+        surface = WebSurface(page, args.url)
+        session = FormLogin()
+        if "authenticated_session" in artifact.preconditions:
+            session.sign_in(surface)
+            log.event("session_ready", provider="FormLogin")
+        if args.inject_fault:
+            _set_target_fault(args.url, args.inject_fault)  # after sign-in: the fault lands mid-run
+            log.event("fault_injected", fault=args.inject_fault, note="test hook, not part of replay")
+        try:
+            result = ReplayExecutor(surface, artifact, log, redactor, session=session,
+                                    approve_irreversible=args.approve_irreversible).run(inputs)
+        finally:
+            if args.inject_fault:
+                _set_target_fault(args.url, "")
+        browser.close()
+    log.close()
+    print(json.dumps(result.model_dump(), indent=2, default=str))
+    return EXIT_CODES[result.status]
+
+
 def cmd_record(args: argparse.Namespace) -> int:
     trace = Trace.model_validate_json(Path(args.trace).read_text(encoding="utf-8"))
     path = _record(trace, args.app, args.name, Path(args.trace).parent)
@@ -86,6 +133,19 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--no-record", action="store_true", help="keep the trace only, do not write an artifact")
     d.add_argument("--evidence", default="evidence")
     d.set_defaults(func=cmd_discover)
+
+    p = sub.add_parser("replay", help="run a saved capability with inputs, no LLM in the loop")
+    p.add_argument("artifact", help="path to capabilities/<app>/<name>/v<N>.yaml")
+    p.add_argument("--input", action="append", default=[], metavar="NAME=VALUE")
+    p.add_argument("--url", default="http://localhost:5001")
+    p.add_argument("--headed", action="store_true", help="show the browser window")
+    p.add_argument("--approve-irreversible", action="store_true",
+                   help="stand in for a human approving irreversible steps")
+    p.add_argument("--inject-fault", metavar="NAME",
+                   help="test hook: arm a mock-app fault after sign-in (slow, interstitial, "
+                        "session_timeout, permission_denied, app_error)")
+    p.add_argument("--evidence", default="evidence")
+    p.set_defaults(func=cmd_replay)
 
     r = sub.add_parser("record", help="build a capability artifact from a saved discovery trace")
     r.add_argument("--trace", required=True, help="path to evidence/discovery/<run>/trace.json")
