@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Member Detail{% endblock %}
+{% block body %}
+<font size="4"><b>Member Detail</b></font><br><br>
+<table class="t1" border="1">
+<tr><td>Member #</td><td>{{ m.member_id }}</td></tr>
+<tr><td>Name</td><td>{{ m.name }}</td></tr>
+<tr><td>SSN</td><td>{{ m.ssn }}</td></tr>
+<tr><td>Date of Birth</td><td>{{ m.dob }}</td></tr>
+<tr><td>Status</td><td>{{ m.status }}</td></tr>
+</table>
+<br><b>Accounts</b>
+<table class="t1" border="1">
+<tr class="c1"><td>Type</td><td>Account No.</td><td>Nickname</td><td>Balance</td></tr>
+{% for a in m.accounts %}
+<tr><td>{{ a.type }}</td><td>{{ a.number }}</td><td>{{ a.nickname }}</td><td align="right">${{ "{:,.2f}".format(a.balance) }}</td></tr>
+{% endfor %}
+</table>
+<br>
+<form method="get" action="/accounts/new">
+<input type="hidden" name="mid" value="{{ m.member_id }}">
+<input type="submit" value="Open Sub-Account">
+</form>
+<a href="/members/search">New Search</a>
+{% endblock %}

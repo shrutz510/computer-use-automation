@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Sign On{% endblock %}
+{% block body %}
+<font size="4"><b>Sign On</b></font><br><br>
+<form method="post" action="/login" target="_top">
+<table class="t1">
+<tr><td>User ID:</td><td><input type="text" name="u" size="16"></td></tr>
+<tr><td>Password:</td><td><input type="password" name="p" size="16"></td></tr>
+<tr><td></td><td><input type="submit" value="Sign On"></td></tr>
+</table>
+</form>
+{% if error %}<table class="t1"><tr><td class="err"><b>{{ error }}</b></td></tr></table>{% endif %}
+{% endblock %}

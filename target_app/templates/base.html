@@ -1,0 +1,26 @@
+<html>
+<head>
+<title>{% block title %}LegacyCore{% endblock %}</title>
+<style>
+body { font-family: Verdana, Arial, sans-serif; font-size: 12px; background: #e8e8d8; margin: 6px; }
+.t1 { border-collapse: collapse; }
+.t1 td { padding: 3px 6px; }
+.c1 { background: #333366; color: #ffffff; }
+.err { color: #bb0000; }
+</style>
+</head>
+<body>
+<table width="100%" class="t1"><tr><td class="c1"><font size="2">CoreServ 4.2 &middot; LegacyCore</font></td></tr></table>
+<br>
+{% block body %}{% endblock %}
+{% if show_notice %}
+<div class="ovl" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45)">
+<table class="t1" width="360" style="margin:80px auto;background:#ffffcc;border:2px solid #666600">
+<tr><td class="c1"><b>System Notice</b></td></tr>
+<tr><td>Scheduled maintenance tonight 11:00 PM - 1:00 AM ET. Transactions posted during this window may be delayed.</td></tr>
+<tr><td align="center"><input type="button" value="Acknowledge" onclick="this.closest('.ovl').remove()"></td></tr>
+</table>
+</div>
+{% endif %}
+</body>
+</html>

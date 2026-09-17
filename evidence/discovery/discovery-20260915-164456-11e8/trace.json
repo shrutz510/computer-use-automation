@@ -1,0 +1,180 @@
+{
+  "run_id": "discovery-20260915-164456-11e8",
+  "goal": "look up member 10023 and read their savings balance",
+  "app": "legacycore",
+  "base_url": "http://localhost:5001",
+  "entry_route": "/",
+  "model": "gemini-3.6-flash",
+  "started_at": "2026-09-15T20:44:58.233560+00:00",
+  "finished_at": "2026-09-15T20:45:18.306558+00:00",
+  "status": "success",
+  "reason": "Extracted the savings balance of $10,527.64 for member 10023.",
+  "steps": [
+    {
+      "index": 1,
+      "tool": "type_text",
+      "rationale": "Type member ID 10023 into the search text box.",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "label",
+            "text": "Member ID"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/members/find\"] input[name=\"mid\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(1) > td:nth-of-type(2) > input:nth-of-type(1)"
+          }
+        ],
+        "description": "textbox \"Member ID\""
+      },
+      "element_role": "textbox",
+      "value": "10023",
+      "param_name": "member_id",
+      "output_name": null,
+      "output_type": null,
+      "ok": true,
+      "error": null,
+      "frames_before": [
+        {
+          "name": "nav",
+          "url": "/nav",
+          "title": "Menu"
+        },
+        {
+          "name": "content",
+          "url": "/members/search",
+          "title": "Member Search"
+        }
+      ],
+      "frames_after": [
+        {
+          "name": "nav",
+          "url": "/nav",
+          "title": "Menu"
+        },
+        {
+          "name": "content",
+          "url": "/members/search",
+          "title": "Member Search"
+        }
+      ],
+      "screenshot": "screenshots/004-step01-type_text.png"
+    },
+    {
+      "index": 2,
+      "tool": "click",
+      "rationale": "Click the Search button to find member 10023.",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "role",
+            "role": "button",
+            "name": "Search"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/members/find\"] input[type=\"submit\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(2) > td:nth-of-type(2) > input:nth-of-type(1)"
+          }
+        ],
+        "description": "button \"Search\""
+      },
+      "element_role": "button",
+      "value": null,
+      "param_name": null,
+      "output_name": null,
+      "output_type": null,
+      "ok": true,
+      "error": null,
+      "frames_before": [
+        {
+          "name": "nav",
+          "url": "/nav",
+          "title": "Menu"
+        },
+        {
+          "name": "content",
+          "url": "/members/search",
+          "title": "Member Search"
+        }
+      ],
+      "frames_after": [
+        {
+          "name": "nav",
+          "url": "/nav",
+          "title": "Menu"
+        },
+        {
+          "name": "content",
+          "url": "/members/10023",
+          "title": "Member Detail"
+        }
+      ],
+      "screenshot": "screenshots/006-step02-click.png"
+    },
+    {
+      "index": 3,
+      "tool": "extract",
+      "rationale": "Extract the savings balance for member 10023 from the Share Savings row.",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "cell",
+            "row_header": "Share Savings",
+            "column_header": "Balance"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > table:nth-of-type(3) > tbody:nth-of-type(1) > tr:nth-of-type(2) > td:nth-of-type(4)"
+          }
+        ],
+        "description": "cell \"Share Savings / Balance\""
+      },
+      "element_role": "cell",
+      "value": "$10,527.64",
+      "param_name": null,
+      "output_name": "savings_balance",
+      "output_type": "decimal",
+      "ok": true,
+      "error": null,
+      "frames_before": [
+        {
+          "name": "nav",
+          "url": "/nav",
+          "title": "Menu"
+        },
+        {
+          "name": "content",
+          "url": "/members/10023",
+          "title": "Member Detail"
+        }
+      ],
+      "frames_after": [
+        {
+          "name": "nav",
+          "url": "/nav",
+          "title": "Menu"
+        },
+        {
+          "name": "content",
+          "url": "/members/10023",
+          "title": "Member Detail"
+        }
+      ],
+      "screenshot": "screenshots/008-step03-extract.png"
+    }
+  ],
+  "outputs": {
+    "savings_balance": "$10,527.64"
+  }
+}

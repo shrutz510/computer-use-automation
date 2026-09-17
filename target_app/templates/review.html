@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Review Sub-Account{% endblock %}
+{% block body %}
+<font size="4"><b>Review Sub-Account</b></font><br><br>
+<table class="t1" border="1">
+<tr><td>Member #</td><td>{{ m.member_id }}</td></tr>
+<tr><td>Account Type</td><td>{{ form.f1 }}</td></tr>
+<tr><td>Nickname</td><td>{{ form.f2 }}</td></tr>
+<tr><td>Initial Deposit</td><td>${{ "{:,.2f}".format(deposit) }}</td></tr>
+</table>
+<br>Please verify the details above. This action cannot be undone once confirmed.<br><br>
+<form method="post" action="/accounts/confirm">
+<input type="hidden" name="mid" value="{{ m.member_id }}">
+<input type="hidden" name="f1" value="{{ form.f1 }}">
+<input type="hidden" name="f2" value="{{ form.f2 }}">
+<input type="hidden" name="f3" value="{{ form.f3 }}">
+<input type="submit" value="Confirm">
+</form>
+<a href="/accounts/new?mid={{ m.member_id }}">Back</a>
+{% endblock %}

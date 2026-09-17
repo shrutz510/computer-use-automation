@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Member Search{% endblock %}
+{% block body %}
+<font size="4"><b>Member Search</b></font><br><br>
+<form method="post" action="/members/find">
+<table class="t1">
+<tr><td>Member ID:</td><td><input type="text" name="mid" size="8" maxlength="10" value="{{ mid or '' }}"></td></tr>
+<tr><td></td><td><input type="submit" value="Search"></td></tr>
+</table>
+</form>
+{% if error %}<table class="t1"><tr><td class="err"><b>{{ error }}</b></td></tr></table>{% endif %}
+{% endblock %}
