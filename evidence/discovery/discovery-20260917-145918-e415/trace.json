@@ -1,19 +1,19 @@
 {
-  "run_id": "discovery-20260915-164456-11e8",
+  "run_id": "discovery-20260917-145918-e415",
   "goal": "look up member 10023 and read their savings balance",
   "app": "legacycore",
   "base_url": "http://localhost:5001",
   "entry_route": "/",
   "model": "gemini-3.6-flash",
-  "started_at": "2026-09-15T20:44:58.233560+00:00",
-  "finished_at": "2026-09-15T20:45:18.306558+00:00",
+  "started_at": "2026-09-17T18:59:21.635539+00:00",
+  "finished_at": "2026-09-17T18:59:47.839491+00:00",
   "status": "success",
-  "reason": "Extracted the savings balance of $10,527.64 for member 10023.",
+  "reason": "Successfully looked up member 10023 and extracted their savings balance ($10,527.64).",
   "steps": [
     {
       "index": 1,
       "tool": "type_text",
-      "rationale": "Type member ID 10023 into the search text box.",
+      "rationale": "Type member ID into search input.",
       "target": {
         "frame": "content",
         "strategies": [
@@ -33,6 +33,9 @@
         "description": "textbox \"Member ID\""
       },
       "element_role": "textbox",
+      "element_name": "",
+      "element_form_method": "post",
+      "element_sensitive": false,
       "value": "10023",
       "param_name": "member_id",
       "output_name": null,
@@ -89,6 +92,9 @@
         "description": "button \"Search\""
       },
       "element_role": "button",
+      "element_name": "Search",
+      "element_form_method": "post",
+      "element_sensitive": false,
       "value": null,
       "param_name": null,
       "output_name": null,
@@ -124,7 +130,7 @@
     {
       "index": 3,
       "tool": "extract",
-      "rationale": "Extract the savings balance for member 10023 from the Share Savings row.",
+      "rationale": "Extract the savings balance amount for member 10023.",
       "target": {
         "frame": "content",
         "strategies": [
@@ -141,6 +147,9 @@
         "description": "cell \"Share Savings / Balance\""
       },
       "element_role": "cell",
+      "element_name": "",
+      "element_form_method": "",
+      "element_sensitive": false,
       "value": "$10,527.64",
       "param_name": null,
       "output_name": "savings_balance",

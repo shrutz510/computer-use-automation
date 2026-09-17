@@ -1,0 +1,770 @@
+{
+  "$defs": {
+    "AppInfo": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "vendor": {
+          "title": "Vendor",
+          "type": "string"
+        },
+        "product": {
+          "title": "Product",
+          "type": "string"
+        },
+        "version_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version Fingerprint"
+        },
+        "surface": {
+          "default": "legacy_web",
+          "enum": [
+            "web",
+            "legacy_web",
+            "desktop"
+          ],
+          "title": "Surface",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "vendor",
+        "product"
+      ],
+      "title": "AppInfo",
+      "type": "object"
+    },
+    "BusinessOutcome": {
+      "description": "A legitimate answer for the caller (e.g. no such member), never a crash.",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/Condition"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "when"
+      ],
+      "title": "BusinessOutcome",
+      "type": "object"
+    },
+    "Capability": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        },
+        "status": {
+          "default": "draft",
+          "enum": [
+            "draft",
+            "approved",
+            "deprecated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "description": {
+          "title": "Description",
+          "type": "string"
+        },
+        "app": {
+          "$ref": "#/$defs/AppInfo"
+        },
+        "risk_level": {
+          "default": "safe",
+          "enum": [
+            "safe",
+            "reversible",
+            "irreversible"
+          ],
+          "title": "Risk Level",
+          "type": "string"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "app",
+        "provenance"
+      ],
+      "title": "Capability",
+      "type": "object"
+    },
+    "CellStrategy": {
+      "description": "A table cell addressed by its row header and (optionally) column header.",
+      "properties": {
+        "by": {
+          "const": "cell",
+          "default": "cell",
+          "title": "By",
+          "type": "string"
+        },
+        "row_header": {
+          "title": "Row Header",
+          "type": "string"
+        },
+        "column_header": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Column Header"
+        }
+      },
+      "required": [
+        "row_header"
+      ],
+      "title": "CellStrategy",
+      "type": "object"
+    },
+    "Condition": {
+      "description": "A state matcher. All set fields must hold.",
+      "properties": {
+        "frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "text_visible": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text Visible"
+        },
+        "url_matches": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url Matches"
+        }
+      },
+      "title": "Condition",
+      "type": "object"
+    },
+    "CssStrategy": {
+      "description": "Structural fallback. Brittle; only used when nothing semantic is unique.",
+      "properties": {
+        "by": {
+          "const": "css",
+          "default": "css",
+          "title": "By",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "CssStrategy",
+      "type": "object"
+    },
+    "Detectors": {
+      "properties": {
+        "recoverable": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RecoverableHandler"
+          },
+          "title": "Recoverable",
+          "type": "array"
+        },
+        "business_outcomes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BusinessOutcome"
+          },
+          "title": "Business Outcomes",
+          "type": "array"
+        },
+        "hard_failures": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/HardFailure"
+          },
+          "title": "Hard Failures",
+          "type": "array"
+        }
+      },
+      "title": "Detectors",
+      "type": "object"
+    },
+    "HardFailure": {
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/Condition"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "when"
+      ],
+      "title": "HardFailure",
+      "type": "object"
+    },
+    "InputSpec": {
+      "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "decimal",
+            "integer",
+            "date"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "pattern": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pattern"
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "example": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Example"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "title": "InputSpec",
+      "type": "object"
+    },
+    "LabelStrategy": {
+      "description": "The visible field label: a real <label>, or the adjacent table cell on legacy forms.",
+      "properties": {
+        "by": {
+          "const": "label",
+          "default": "label",
+          "title": "By",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "LabelStrategy",
+      "type": "object"
+    },
+    "OutputSpec": {
+      "properties": {
+        "type": {
+          "default": "string",
+          "enum": [
+            "string",
+            "decimal",
+            "integer",
+            "date"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "sensitive": {
+          "default": false,
+          "title": "Sensitive",
+          "type": "boolean"
+        },
+        "source_step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Step"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        }
+      },
+      "title": "OutputSpec",
+      "type": "object"
+    },
+    "Provenance": {
+      "properties": {
+        "recorded_at": {
+          "title": "Recorded At",
+          "type": "string"
+        },
+        "goal": {
+          "title": "Goal",
+          "type": "string"
+        },
+        "discovery_run": {
+          "title": "Discovery Run",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "evidence_path": {
+          "title": "Evidence Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "recorded_at",
+        "goal",
+        "discovery_run",
+        "model",
+        "evidence_path"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "RecoverableHandler": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "when": {
+          "$ref": "#/$defs/Condition"
+        },
+        "do": {
+          "enum": [
+            "click",
+            "reload",
+            "reauthenticate",
+            "escalate"
+          ],
+          "title": "Do",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Target"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "max_times": {
+          "default": 2,
+          "title": "Max Times",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "when",
+        "do"
+      ],
+      "title": "RecoverableHandler",
+      "type": "object"
+    },
+    "RoleStrategy": {
+      "description": "Accessible role + accessible name, e.g. button \"Search\".",
+      "properties": {
+        "by": {
+          "const": "role",
+          "default": "role",
+          "title": "By",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "name"
+      ],
+      "title": "RoleStrategy",
+      "type": "object"
+    },
+    "Step": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "action": {
+          "enum": [
+            "type",
+            "select",
+            "click",
+            "extract"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/$defs/Target"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "into": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Into"
+        },
+        "parse": {
+          "anyOf": [
+            {
+              "enum": [
+                "string",
+                "decimal",
+                "integer",
+                "date"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parse"
+        },
+        "risk": {
+          "default": "safe",
+          "enum": [
+            "safe",
+            "reversible",
+            "irreversible"
+          ],
+          "title": "Risk",
+          "type": "string"
+        },
+        "checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "action",
+        "target"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "Success": {
+      "properties": {
+        "checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Condition"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "outputs_present": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Outputs Present",
+          "type": "array"
+        }
+      },
+      "title": "Success",
+      "type": "object"
+    },
+    "Target": {
+      "properties": {
+        "frame": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frame"
+        },
+        "strategies": {
+          "items": {
+            "discriminator": {
+              "mapping": {
+                "cell": "#/$defs/CellStrategy",
+                "css": "#/$defs/CssStrategy",
+                "label": "#/$defs/LabelStrategy",
+                "role": "#/$defs/RoleStrategy"
+              },
+              "propertyName": "by"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/$defs/RoleStrategy"
+              },
+              {
+                "$ref": "#/$defs/LabelStrategy"
+              },
+              {
+                "$ref": "#/$defs/CellStrategy"
+              },
+              {
+                "$ref": "#/$defs/CssStrategy"
+              }
+            ]
+          },
+          "title": "Strategies",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategies"
+      ],
+      "title": "Target",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "default": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "capability": {
+      "$ref": "#/$defs/Capability"
+    },
+    "preconditions": {
+      "default": [
+        "authenticated_session"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Preconditions",
+      "type": "array"
+    },
+    "entry": {
+      "default": "/",
+      "title": "Entry",
+      "type": "string"
+    },
+    "inputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/InputSpec"
+      },
+      "default": {},
+      "title": "Inputs",
+      "type": "object"
+    },
+    "outputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/OutputSpec"
+      },
+      "default": {},
+      "title": "Outputs",
+      "type": "object"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "success": {
+      "$ref": "#/$defs/Success"
+    },
+    "detectors_pack": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Detectors Pack"
+    },
+    "detectors": {
+      "$ref": "#/$defs/Detectors"
+    },
+    "tenant_overrides": {
+      "additionalProperties": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "default": {},
+      "title": "Tenant Overrides",
+      "type": "object"
+    }
+  },
+  "required": [
+    "capability",
+    "steps"
+  ],
+  "title": "CapabilityArtifact",
+  "type": "object"
+}

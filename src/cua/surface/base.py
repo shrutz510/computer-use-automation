@@ -36,6 +36,7 @@ class Element:
     input_type: str = ""
     attr_name: str = ""
     form_action: str = ""
+    form_method: str = ""
     options: list[str] | None = None
     css_path: str = ""
     sensitive: bool = False

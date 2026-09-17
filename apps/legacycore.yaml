@@ -1,0 +1,59 @@
+# App pack for LegacyCore / CoreServ: what the app is, and the runtime states it can show.
+# Not flow-specific, so every capability recorded against this app inherits it. In production
+# this is versioned per vendor product and merged at load time; here the recorder copies it
+# into the artifact so the artifact stays self-contained and reviewable.
+pack: legacycore
+version: 1
+
+app:
+  key: legacycore
+  vendor: LegacyCore
+  product: CoreServ
+  version_fingerprint: CoreServ 4.2
+  surface: legacy_web
+
+detectors:
+  # Handled inside the run. Never a result status; recorded in the event log.
+  recoverable:
+    - id: system_notice
+      when:
+        text_visible: System Notice
+      do: click
+      target:
+        frame: content
+        strategies:
+          - by: role
+            role: button
+            name: Acknowledge
+        description: button "Acknowledge"
+      max_times: 2
+    - id: session_expired
+      when:
+        text_visible: Your session has expired
+      do: reauthenticate
+      max_times: 1
+
+  # Legitimate answers the caller needs. Not failures.
+  business_outcomes:
+    - code: MEMBER_NOT_FOUND
+      when:
+        text_visible: No member found
+    - code: MEMBER_NOT_ELIGIBLE
+      when:
+        text_visible: not eligible for new sub-accounts
+    - code: INPUT_REJECTED
+      when:
+        text_visible: Member ID must be
+    - code: DEPOSIT_OUT_OF_RANGE
+      when:
+        text_visible: Initial deposit must be
+
+  # Stop and surface a debuggable error.
+  hard_failures:
+    - code: APP_ERROR
+      when:
+        text_visible: Application Error
+      retryable: true
+    - code: PERMISSION_DENIED
+      when:
+        text_visible: Insufficient privileges

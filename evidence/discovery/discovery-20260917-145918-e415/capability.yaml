@@ -1,0 +1,139 @@
+schema_version: '1.0'
+capability:
+  id: legacycore.member_savings_balance
+  name: member_savings_balance
+  version: 1
+  status: draft
+  description: look up member {{inputs.member_id}} and read their savings balance
+  app:
+    key: legacycore
+    vendor: LegacyCore
+    product: CoreServ
+    version_fingerprint: CoreServ 4.2
+    surface: legacy_web
+  risk_level: reversible
+  provenance:
+    recorded_at: '2026-09-17T18:59:47+00:00'
+    goal: look up member 10023 and read their savings balance
+    discovery_run: discovery-20260917-145918-e415
+    model: gemini-3.6-flash
+    evidence_path: evidence/discovery/discovery-20260917-145918-e415
+preconditions:
+- authenticated_session
+entry: /
+inputs:
+  member_id:
+    type: string
+    required: true
+    pattern: ^\d{5}$
+    sensitive: false
+    example: '10023'
+outputs:
+  savings_balance:
+    type: decimal
+    sensitive: false
+    source_step: s3_extract_savings_balance
+steps:
+- id: s1_type_member_id
+  action: type
+  target:
+    frame: content
+    strategies:
+    - by: label
+      text: Member ID
+    - by: css
+      value: form[action="/members/find"] input[name="mid"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(1) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: textbox "Member ID"
+  value: '{{inputs.member_id}}'
+  risk: safe
+- id: s2_click_search
+  action: click
+  target:
+    frame: content
+    strategies:
+    - by: role
+      role: button
+      name: Search
+    - by: css
+      value: form[action="/members/find"] input[type="submit"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(2) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: button "Search"
+  risk: reversible
+  checkpoint:
+    frame: content
+    title: Member Detail
+    url_matches: ^/members/[^/]+$
+- id: s3_extract_savings_balance
+  action: extract
+  target:
+    frame: content
+    strategies:
+    - by: cell
+      row_header: Share Savings
+      column_header: Balance
+    - by: css
+      value: html > body:nth-of-type(1) > table:nth-of-type(3) > tbody:nth-of-type(1) > tr:nth-of-type(2)
+        > td:nth-of-type(4)
+    description: cell "Share Savings / Balance"
+  into: outputs.savings_balance
+  parse: decimal
+  risk: safe
+success:
+  checkpoint:
+    frame: content
+    title: Member Detail
+    url_matches: ^/members/[^/]+$
+  outputs_present:
+  - savings_balance
+detectors_pack: legacycore@1
+detectors:
+  recoverable:
+  - id: system_notice
+    when:
+      text_visible: System Notice
+    do: click
+    target:
+      frame: content
+      strategies:
+      - by: role
+        role: button
+        name: Acknowledge
+      description: button "Acknowledge"
+    max_times: 2
+  - id: session_expired
+    when:
+      text_visible: Your session has expired
+    do: reauthenticate
+    max_times: 1
+  business_outcomes:
+  - code: MEMBER_NOT_FOUND
+    when:
+      text_visible: No member found
+    retryable: false
+  - code: MEMBER_NOT_ELIGIBLE
+    when:
+      text_visible: not eligible for new sub-accounts
+    retryable: false
+  - code: INPUT_REJECTED
+    when:
+      text_visible: Member ID must be
+    retryable: false
+  - code: DEPOSIT_OUT_OF_RANGE
+    when:
+      text_visible: Initial deposit must be
+    retryable: false
+  hard_failures:
+  - code: APP_ERROR
+    when:
+      text_visible: Application Error
+    retryable: true
+  - code: PERMISSION_DENIED
+    when:
+      text_visible: Insufficient privileges
+    retryable: false
+tenant_overrides: {}

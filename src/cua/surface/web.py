@@ -92,6 +92,7 @@ SNAPSHOT_JS = r"""
       ref, kind: 'control', role: roleOf(el), name: nameOf(el), label: adjacentLabel(el),
       tag: el.tagName.toLowerCase(), input_type: el.type || '', attr_name: el.getAttribute('name') || '',
       form_action: el.form ? (el.form.getAttribute('action') || '') : '',
+      form_method: el.form ? (el.form.getAttribute('method') || 'get').toLowerCase() : '',
       options: el.tagName === 'SELECT' ? [...el.options].map(o => clean(o.text)) : null,
       css_path: cssPath(el),
     });

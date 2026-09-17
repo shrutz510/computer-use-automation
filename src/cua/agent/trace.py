@@ -20,6 +20,9 @@ class TraceStep(BaseModel):
     rationale: str = ""
     target: Target | None = None
     element_role: str | None = None
+    element_name: str | None = None         # accessible name of the control, for risk rules
+    element_form_method: str | None = None  # get/post: a POST submission may change state
+    element_sensitive: bool = False         # the value read was marked sensitive
     value: str | None = None
     param_name: str | None = None
     output_name: str | None = None

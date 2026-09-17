@@ -107,6 +107,9 @@ class DiscoveryAgent:
             self.log.event("action_error", step=i, error=step.error)
             return step, snap
         step.element_role = element.role
+        step.element_name = element.name
+        step.element_form_method = element.form_method
+        step.element_sensitive = element.sensitive
         try:
             step.target = self.surface.describe(ref)
             handle = self.surface.handle_for_ref(ref)
