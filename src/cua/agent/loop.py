@@ -7,7 +7,7 @@ from cua.agent.tools import SYSTEM_PROMPT, TOOLS
 from cua.agent.trace import FrameState, Trace, TraceStep
 from cua.evidence import RunLog
 from cua.redaction import Redactor
-from cua.surface import Snapshot, Surface, SurfaceError
+from cua.surface import ApprovalRequired, PolicyBlocked, Snapshot, Surface, SurfaceError
 
 MAX_REPEATS = 3          # same action on the same target this many times in a row -> stuck
 MAX_NO_CHANGE = 4        # this many actions in a row without the screen changing -> stuck
@@ -83,7 +83,12 @@ class DiscoveryAgent:
                 self._shot(trace, "stuck")
                 return self._finish(trace, "escalated", f"stuck: repeated {call.name} on the same target {MAX_REPEATS} times")
 
-            step, after = self._act(i, call, snap)
+            try:
+                step, after = self._act(i, call, snap)
+            except ApprovalRequired as e:
+                # The gate, not the model, decided this needs a person. Discovery stops here.
+                self._shot(trace, "approval-required")
+                return self._finish(trace, "escalated", f"needs human approval: {e}")
             trace.steps.append(step)
             history.append(self._history_line(step, snap, after))
             errors = 0 if step.ok else errors + 1
@@ -128,6 +133,8 @@ class DiscoveryAgent:
                     self.redactor.learn([step.value])
             else:
                 raise SurfaceError(f"unknown tool {call.name!r}")
+        except PolicyBlocked as e:
+            step.ok, step.error = False, f"blocked by policy: {e.reason}"  # fed back to the model
         except SurfaceError as e:
             step.ok, step.error = False, str(e)
         after = self.surface.observe()

@@ -1,0 +1,44 @@
+# Guardrails for automating LegacyCore. Enforced in the surface layer for discovery, sign-in
+# and replay alike: the LLM can ask for anything; this file decides.
+policy: legacycore
+version: 1
+
+# Only this deployment. Anything else is refused before the browser even starts.
+allowed_origins:
+  - http://localhost:5001
+  - http://127.0.0.1:5001
+
+# Page navigations and state-changing requests must match one of these (glob on the path).
+# Denied patterns win over allowed ones.
+allowed_routes:
+  - /
+  - /nav
+  - /login
+  - /ack
+  - /members/*
+  - /accounts/*
+denied_routes:
+  - /admin/*   # test hooks: never reachable by the agent
+  - /logout    # signing off would strand the run
+
+allowed_actions: [navigate, click, type, select, extract]
+
+# What to do with a control that commits something (Confirm, Transfer, Delete, ...):
+#   block            - never; the flow cannot be automated past this point
+#   require_approval - pause for a human to approve this specific action   <- chosen
+#   flag             - proceed, but log it
+# require_approval: blocking would make the write flows impossible to automate at all, and a
+# flag is only noticed after the money has moved.
+irreversible: require_approval
+irreversible_names: '(?i)\b(confirm|submit|post|approve|authorize|transfer|send|pay|delete|remove|close|void|reverse)\b'
+
+# Table fields whose values are masked in screenshots, hidden from the LLM and scrubbed from logs.
+sensitive_labels:
+  - SSN
+  - Social Security Number
+  - Date of Birth
+  - DOB
+  - Name
+  - Account No.
+  - Account Number
+  - New Account Number

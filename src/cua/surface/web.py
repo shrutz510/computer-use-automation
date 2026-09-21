@@ -3,12 +3,15 @@
 import hashlib
 import time
 from pathlib import Path
+from typing import Callable
 
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Frame, Locator, Page
+from playwright.sync_api import Frame, Locator, Page, Request, Route
 
 from cua.redaction import DEFAULT_SENSITIVE_LABELS
-from cua.surface.base import Element, FrameView, Resolved, Snapshot, SurfaceError, TargetNotFound
+from cua.surface.base import ControlInfo, Element, FrameView, Resolved, Snapshot, SurfaceError, TargetNotFound
+
+RequestPolicy = Callable[[str, str, bool], str | None]  # (url, method, is_navigation) -> violation or None
 from cua.surface.targets import CellStrategy, CssStrategy, LabelStrategy, RoleStrategy, Strategy, Target
 
 ACTION_TIMEOUT_MS = 5_000
@@ -120,6 +123,25 @@ SNAPSHOT_JS = r"""
 """
 
 
+# What a control is and where activating it would go, for the policy gate.
+INSPECT_JS = r"""
+el => {
+  const clean = s => (s || '').replace(/\s+/g, ' ').trim();
+  const isButtonInput = el.tagName === 'INPUT' && ['submit', 'button', 'reset'].includes(el.type);
+  const name = el.getAttribute('aria-label') || (isButtonInput ? el.value : '')
+    || ((el.tagName === 'A' || el.tagName === 'BUTTON') ? el.innerText : '') || el.getAttribute('title') || '';
+  const submits = el.tagName === 'BUTTON' ? (el.getAttribute('type') || 'submit') === 'submit'
+    : (el.tagName === 'INPUT' && el.type === 'submit');
+  let destination = null;
+  if (el.tagName === 'A' && el.getAttribute('href')) destination = el.href;
+  else if (submits && el.form) destination = el.form.action;
+  return {tag: el.tagName.toLowerCase(), name: clean(name),
+          form_method: el.form ? (el.getAttribute('formmethod') || el.form.getAttribute('method') || 'get').toLowerCase() : '',
+          destination, frame_url: location.href};
+}
+"""
+
+
 def _xpath_literal(s: str) -> str:
     if '"' not in s:
         return f'"{s}"'
@@ -145,21 +167,39 @@ def _cell_xpath(row_header: str, column_header: str | None) -> str:
 
 
 class WebSurface:
-    def __init__(self, page: Page, base_url: str, sensitive_labels: list[str] | None = None):
+    def __init__(self, page: Page, base_url: str, sensitive_labels: list[str] | None = None,
+                 request_policy: RequestPolicy | None = None):
         self.page = page
         self.base_url = base_url.rstrip("/")
         self.sensitive_labels = sensitive_labels or list(DEFAULT_SENSITIVE_LABELS)
+        self.violations: list[str] = []  # requests the network layer refused, in order
         self._last: Snapshot | None = None
         self._inflight = 0
         self._last_net = time.monotonic()
+        self._request_policy = request_policy
         page.on("request", self._on_request_start)
         page.on("requestfinished", self._on_request_end)
         page.on("requestfailed", self._on_request_end)
+        if request_policy is not None:
+            page.route("**/*", self._guard_request)
+
+    def _guard_request(self, route: Route, request: Request) -> None:
+        """Network-layer enforcement: catches what an action-level check cannot see,
+        such as server redirects and script-driven navigation."""
+        reason = self._request_policy(request.url, request.method, request.is_navigation_request())
+        if reason:
+            self.violations.append(f"{request.method} {request.url}: {reason}")
+            route.abort("blockedbyclient")
+        else:
+            route.fallback()
 
     # ---- navigation -------------------------------------------------------
 
     def goto(self, route: str) -> None:
-        self.page.goto(self.base_url + route)
+        try:
+            self.page.goto(self.base_url + route)
+        except PlaywrightError as e:
+            raise SurfaceError(f"navigation to {route} failed: {str(e).splitlines()[0]}") from e
         self._settle()
 
     def reload(self) -> None:
@@ -313,7 +353,14 @@ class WebSurface:
 
     # ---- actions ----------------------------------------------------------
 
-    def click(self, handle: Locator) -> None:
+    def inspect(self, handle: Locator) -> ControlInfo:
+        try:
+            info = handle.evaluate(INSPECT_JS, timeout=ACTION_TIMEOUT_MS)
+        except PlaywrightError as e:
+            raise SurfaceError(f"inspect failed: {str(e).splitlines()[0]}") from e
+        return ControlInfo(**info)
+
+    def click(self, handle: Locator, risk_hint: str = "safe") -> None:  # risk_hint is for the policy gate
         try:
             handle.click(timeout=ACTION_TIMEOUT_MS)
         except PlaywrightError as e:

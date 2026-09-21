@@ -17,7 +17,7 @@ from cua.agent.trace import FrameState, Trace
 from cua.artifact.schema import (
     AppPack, Capability, CapabilityArtifact, Condition, InputSpec, OutputSpec, Provenance, Step, Success,
 )
-from cua.policy import click_risk, highest
+from cua.policy import Policy, highest
 from cua.values import OutputType
 
 STOPWORDS = {
@@ -68,9 +68,10 @@ def _checkpoint(before: list[FrameState], after: list[FrameState], values: list[
 
 
 def record(trace: Trace, pack: AppPack, name: str | None = None, version: int = 1,
-           evidence_path: str = "") -> CapabilityArtifact:
+           evidence_path: str = "", policy: Policy | None = None) -> CapabilityArtifact:
     if trace.status != "success":
         raise ValueError(f"only a successful run can be recorded (status={trace.status})")
+    click_risk = (policy or Policy()).click_risk  # the same rules the gate enforces at runtime
 
     steps: list[Step] = []
     inputs: dict[str, InputSpec] = {}

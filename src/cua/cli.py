@@ -1,4 +1,4 @@
-"""Command line entry point: `cua discover | record | schema`."""
+"""Command line entry point: `cua discover | replay | record | schema`."""
 
 import argparse
 import json
@@ -8,18 +8,37 @@ import urllib.request
 from pathlib import Path
 
 from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Page, sync_playwright
 
 from cua.agent import DiscoveryAgent
 from cua.agent.llm import GeminiDecider
 from cua.agent.trace import Trace
 from cua.artifact import store
 from cua.evidence import RunLog
+from cua.policy import Policy, load_policy
 from cua.recorder import derive_name, record
 from cua.redaction import Redactor
 from cua.replay import ReplayExecutor
 from cua.session import FormLogin
+from cua.surface import ApprovalRequest
+from cua.surface.guarded import Approver, GuardedSurface
 from cua.surface.web import WebSurface
+
+EXIT_CODES = {"success": 0, "business_outcome": 0, "failed": 1, "escalated": 2}
+
+
+def _policy_for(app: str, url: str) -> Policy:
+    """Refuse to start at all against a target the policy does not allowlist."""
+    policy = load_policy(app)
+    reason = policy.route_violation(url.rstrip("/") + "/")
+    if reason:
+        raise SystemExit(f"refusing to run against {url}: {reason} (policies/{app}.yaml)")
+    return policy
+
+
+def _surface(page: Page, url: str, policy: Policy, log: RunLog, approver: Approver | None = None) -> GuardedSurface:
+    web = WebSurface(page, url, sensitive_labels=policy.sensitive_labels, request_policy=policy.request_violation)
+    return GuardedSurface(web, policy, log=log, approver=approver)
 
 
 def _record(trace: Trace, app: str, name: str | None, evidence_dir: Path | None = None) -> Path:
@@ -27,21 +46,30 @@ def _record(trace: Trace, app: str, name: str | None, evidence_dir: Path | None 
     name = name or derive_name(trace.goal)
     version = store.next_version(app, name)
     artifact = record(trace, pack, name=name, version=version,
-                      evidence_path=str(evidence_dir) if evidence_dir else "")
+                      evidence_path=str(evidence_dir) if evidence_dir else "", policy=load_policy(app))
     path = store.save(artifact)
     if evidence_dir:  # keep the evidence directory self-contained
         (evidence_dir / "capability.yaml").write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
     return path
 
 
+def _set_target_fault(base_url: str, name: str) -> None:
+    """Test hook for generating evidence: arm one of the mock app's faults mid-run.
+    Goes straight to the app over HTTP, outside the guarded browser, by design."""
+    data = urllib.parse.urlencode({"name": name}).encode()
+    with urllib.request.urlopen(f"{base_url.rstrip('/')}/admin/fault", data=data, timeout=5) as resp:
+        resp.read()
+
+
 def cmd_discover(args: argparse.Namespace) -> int:
+    policy = _policy_for(args.app, args.url)
     redactor = Redactor()
     log = RunLog(Path(args.evidence), "discovery", redactor)
     decider = GeminiDecider(model=args.model)
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not args.headed)
         page = browser.new_context(viewport={"width": 1280, "height": 800}).new_page()
-        surface = WebSurface(page, args.url)
+        surface = _surface(page, args.url, policy, log)  # no approver: discovery never commits
         FormLogin().sign_in(surface)
         log.event("session_ready", provider="FormLogin")  # credentials are never logged
         surface.goto(args.entry)
@@ -60,18 +88,9 @@ def cmd_discover(args: argparse.Namespace) -> int:
     return 0 if trace.status == "success" else 1
 
 
-EXIT_CODES = {"success": 0, "business_outcome": 0, "failed": 1, "escalated": 2}
-
-
-def _set_target_fault(base_url: str, name: str) -> None:
-    """Test hook for generating evidence: arm one of the mock app's faults mid-run."""
-    data = urllib.parse.urlencode({"name": name}).encode()
-    with urllib.request.urlopen(f"{base_url.rstrip('/')}/admin/fault", data=data, timeout=5) as resp:
-        resp.read()
-
-
 def cmd_replay(args: argparse.Namespace) -> int:
     artifact = store.load(Path(args.artifact))
+    policy = _policy_for(artifact.capability.app.key, args.url)
     inputs: dict[str, str] = {}
     for pair in args.input:
         if "=" not in pair:
@@ -79,12 +98,17 @@ def cmd_replay(args: argparse.Namespace) -> int:
         name, value = pair.split("=", 1)
         inputs[name] = value
 
+    approver: Approver | None = None
+    if args.approve_irreversible:
+        def approver(request: ApprovalRequest) -> bool:
+            return True  # stand-in for a human; recorded as approval_granted in the event log
+
     redactor = Redactor()
     log = RunLog(Path(args.evidence), "replay", redactor)
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not args.headed)
         page = browser.new_context(viewport={"width": 1280, "height": 800}).new_page()
-        surface = WebSurface(page, args.url)
+        surface = _surface(page, args.url, policy, log, approver)
         session = FormLogin()
         if "authenticated_session" in artifact.preconditions:
             session.sign_in(surface)
@@ -93,8 +117,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
             _set_target_fault(args.url, args.inject_fault)  # after sign-in: the fault lands mid-run
             log.event("fault_injected", fault=args.inject_fault, note="test hook, not part of replay")
         try:
-            result = ReplayExecutor(surface, artifact, log, redactor, session=session,
-                                    approve_irreversible=args.approve_irreversible).run(inputs)
+            result = ReplayExecutor(surface, artifact, log, redactor, session=session).run(inputs)
         finally:
             if args.inject_fault:
                 _set_target_fault(args.url, "")

@@ -46,8 +46,8 @@ class ReplayBusinessOutcome(_Base):
 
 class ReplayFailure(_Base):
     status: Literal["failed"] = "failed"
-    code: str  # INPUT_INVALID | LOCATOR_NOT_FOUND | CHECKPOINT_FAILED | OUTPUT_MISSING |
-               # PARSE_ERROR | ACTION_FAILED | APP_ERROR | PERMISSION_DENIED | SESSION_FAILED
+    code: str  # INPUT_INVALID | LOCATOR_NOT_FOUND | CHECKPOINT_FAILED | OUTPUT_MISSING | PARSE_ERROR |
+               # ACTION_FAILED | POLICY_VIOLATION | APP_ERROR | PERMISSION_DENIED | SESSION_FAILED
     step: str | None = None
     expected: str | None = None
     observed: str | None = None

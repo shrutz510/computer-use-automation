@@ -102,6 +102,27 @@ escalation.
 Recorded runs for every one of those branches, and the discovery run, are indexed in
 [`evidence/README.md`](evidence/README.md).
 
+## Safety policy
+
+[`policies/legacycore.yaml`](policies/legacycore.yaml) is the allowlist: the one origin the
+tool may touch, the routes it may load (with `/admin/*` and `/logout` denied), the action types
+it may perform, what to do with irreversible controls (`require_approval`), and which fields
+count as sensitive. It is enforced in code, in the surface layer, for discovery, sign-in and
+replay alike; the LLM's prompt is not a control. Two layers:
+
+1. every action is checked before it runs: action type, where a link or submit would go, and
+   the control's risk (a name like *Confirm* or *Transfer*, or a step marked irreversible in
+   the artifact, needs a human's approval);
+2. the browser aborts any request outside the allowlist, which catches redirects and
+   script-driven navigation the first layer cannot see.
+
+The CLI refuses to start against a target the policy does not list:
+
+```bash
+.venv/bin/cua replay $CAP --input member_id=10023 --url https://example.com
+# refusing to run against https://example.com: origin https://example.com is not allowlisted
+```
+
 ## Tests
 
 ```bash
@@ -109,18 +130,19 @@ Recorded runs for every one of those branches, and the discovery run, are indexe
 ```
 
 Covers the target app's flows and faults, redaction, locator synthesis/resolution against
-hostile fixture HTML, trace → artifact recording, and replay against the live app for every
+hostile fixture HTML, trace → artifact recording, replay against the live app for every
 branch of the taxonomy (success, business outcome, recovered interstitial, recovered session
-expiry, hard failure, broken locator, escalation on an irreversible step). No API key needed.
+expiry, hard failure, broken locator, escalation on an irreversible step), and the policy: route
+rules, both enforcement layers, approval, and discovery obeying the gate (driven by a scripted
+stand-in for the LLM). No API key needed.
 
 ## Status
 
 Built: the mock target app; the Surface abstraction (Playwright, frame-aware); the LLM
 observe → decide → act discovery loop with stuck detection; the recorder and the versioned
 capability artifact; deterministic replay with the error taxonomy, condition-based waits and
-drift signals; redaction and run evidence.
+drift signals; the policy allowlist with two enforcement layers and irreversible-action
+approval; redaction and run evidence.
 
-Next: the policy allowlist enforced in the surface layer, and human escalation/handoff (pause,
-take over the live session, resume). Replay already refuses irreversible steps without
-approval, which is the seam those hook into. See `REPORT.md` for the design and the deliberate
-cuts.
+Next: human escalation/handoff (pause, take over the live session, resume). The policy gate's
+approval hook is the seam it plugs into. See `REPORT.md` for the design and the deliberate cuts.

@@ -15,9 +15,11 @@ from werkzeug.serving import make_server
 
 from cua.artifact import store
 from cua.evidence import RunLog
+from cua.policy import load_policy
 from cua.redaction import Redactor
 from cua.replay import ReplayExecutor
 from cua.session import FormLogin
+from cua.surface.guarded import GuardedSurface
 from cua.surface.web import WebSurface
 from target_app import create_app
 
@@ -49,12 +51,15 @@ def browser():
 def replay(server, browser, tmp_path):
     base_url, app = server
     base_artifact = store.load(ARTIFACT)
+    policy = load_policy("legacycore").model_copy(update={"allowed_origins": [base_url]})
 
-    def run(inputs, fault=None, artifact=None, **kwargs):
+    def run(inputs, fault=None, artifact=None, approve=False, **kwargs):
         page = browser.new_page()
         redactor = Redactor()
         log = RunLog(tmp_path, "replay", redactor)
-        surface = WebSurface(page, base_url)
+        web = WebSurface(page, base_url, sensitive_labels=policy.sensitive_labels,
+                         request_policy=policy.request_violation)
+        surface = GuardedSurface(web, policy, log=log, approver=(lambda request: True) if approve else None)
         session = FormLogin()
         session.sign_in(surface)
         app.config["FAULT"] = fault  # inject after sign-in: the fault hits the run, not the login
@@ -125,8 +130,17 @@ def test_broken_locator_reports_what_it_tried(replay):
 
 def test_irreversible_step_escalates_unless_approved(replay):
     artifact = store.load(ARTIFACT)
-    artifact.steps[1].risk = "irreversible"
+    artifact.steps[1].risk = "irreversible"  # a reviewer can mark any step irreversible
     escalated = replay({"member_id": "10023"}, artifact=artifact)
     assert escalated.status == "escalated"
     assert "needs human approval" in escalated.reason
-    assert replay({"member_id": "10023"}, artifact=artifact, approve_irreversible=True).status == "success"
+    assert escalated.step == "s2_click_search"
+    assert replay({"member_id": "10023"}, artifact=artifact, approve=True).status == "success"
+
+
+def test_entry_outside_the_allowlist_is_a_policy_violation(replay):
+    artifact = store.load(ARTIFACT)
+    artifact.entry = "/admin/reset"  # a tampered artifact
+    result = replay({"member_id": "10023"}, artifact=artifact)
+    assert (result.status, result.code) == ("failed", "POLICY_VIOLATION")
+    assert "denied" in result.observed

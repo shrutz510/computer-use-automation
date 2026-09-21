@@ -24,7 +24,9 @@ from cua.replay.result import (
     Recovery, ReplayBusinessOutcome, ReplayEscalated, ReplayFailure, ReplayResult, ReplaySuccess,
 )
 from cua.session import FormLogin
-from cua.surface import Snapshot, Surface, SurfaceError, TargetNotFound
+from cua.surface import (
+    ApprovalRequired, PolicyBlocked, PolicyError, Snapshot, Surface, SurfaceError, TargetNotFound,
+)
 from cua.values import ParseError, parse_value
 
 PARAM_RE = re.compile(r"\{\{inputs\.(\w+)\}\}")
@@ -34,13 +36,14 @@ RESTART = object()  # sentinel: re-authenticated, run the flow again from the to
 
 class ReplayExecutor:
     def __init__(self, surface: Surface, artifact: CapabilityArtifact, log: RunLog, redactor: Redactor,
-                 session=None, approve_irreversible: bool = False, step_timeout_s: float = STEP_TIMEOUT_S):
+                 session=None, step_timeout_s: float = STEP_TIMEOUT_S):
+        # `surface` should be a GuardedSurface: policy (allowlist, irreversible approval)
+        # is enforced there, not here, so replay and discovery cannot drift apart.
         self.surface = surface
         self.artifact = artifact
         self.log = log
         self.redactor = redactor
         self.session = session or FormLogin()
-        self.approve_irreversible = approve_irreversible
         self.step_timeout_s = step_timeout_s
         self._recovered: list[Recovery] = []
         self._handler_counts: dict[str, int] = {}
@@ -74,6 +77,8 @@ class ReplayExecutor:
         outputs: dict[str, Any] = {}
         try:
             self.surface.goto(self.artifact.entry)
+        except PolicyBlocked as e:
+            return self._fail("POLICY_VIOLATION", None, expected=f"an allowlisted entry route", observed=e.reason)
         except SurfaceError as e:
             return self._fail("SESSION_FAILED", None, expected=f"entry {self.artifact.entry}", observed=str(e))
 
@@ -81,9 +86,6 @@ class ReplayExecutor:
             snap, verdict = self._classified_state(step.id)
             if verdict is not None:
                 return verdict
-            if step.risk == "irreversible" and not self.approve_irreversible:
-                return self._escalate(f"step {step.id} is irreversible ({step.target.description}) "
-                                      "and needs human approval", step.id)
             outcome = self._run_step(step, inputs, outputs)
             if outcome is not None:
                 return outcome
@@ -111,7 +113,7 @@ class ReplayExecutor:
                 value = self._substitute(step.value or "", inputs)
                 self.surface.select(resolved.handle, value)
             elif step.action == "click":
-                self.surface.click(resolved.handle)
+                self.surface.click(resolved.handle, risk_hint=step.risk)
             elif step.action == "extract":
                 name = (step.into or "").removeprefix("outputs.")
                 text = self.surface.read(resolved.handle)
@@ -125,6 +127,11 @@ class ReplayExecutor:
                                       screenshot=self._shot(f"{step.id}-parse-error"))
         except KeyError as e:
             return self._fail("INPUT_INVALID", step.id, expected=f"input {e}", observed="not supplied")
+        except ApprovalRequired as e:
+            return self._escalate(f"step {step.id}: {e}", step.id)
+        except PolicyBlocked as e:
+            return self._fail("POLICY_VIOLATION", step.id, expected=f"{step.action} within policy",
+                              observed=e.reason, screenshot=self._shot(f"{step.id}-policy"))
         except SurfaceError as e:
             return self._fail("ACTION_FAILED", step.id, expected=f"{step.action} {step.target.description}",
                               observed=str(e), screenshot=self._shot(f"{step.id}-action-failed"), retryable=True)
@@ -216,6 +223,9 @@ class ReplayExecutor:
                 detail = "re-authenticated and restarted the flow"
             elif handler.do == "escalate":
                 return self._escalate(f"handler {handler.id} requires a human", step_id)
+        except PolicyError as e:  # a recovery is an action like any other: same gate
+            return self._fail("POLICY_VIOLATION", step_id, expected=f"recovery {handler.id} within policy",
+                              observed=str(e))
         except (SurfaceError, TargetNotFound) as e:
             return self._fail("ACTION_FAILED", step_id, expected=f"recovery {handler.id}", observed=str(e),
                               screenshot=self._shot(f"{step_id}-recovery-failed"), retryable=True)
