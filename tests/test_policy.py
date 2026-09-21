@@ -1,13 +1,10 @@
 """The policy and its enforcement: route rules, both enforcement layers, irreversible
 approval, and discovery obeying the gate even when the model asks for something else."""
 
-import re
-
 import pytest
 from playwright.sync_api import sync_playwright
 
 from cua.agent import DiscoveryAgent
-from cua.agent.llm import ToolCall
 from cua.evidence import RunLog
 from cua.policy import Policy, load_policy
 from cua.redaction import Redactor
@@ -162,27 +159,9 @@ def test_disallowed_action_type(make_surface):
 
 # ---- discovery obeys the gate, whatever the model asks for ---------------
 
-class ScriptedDecider:
-    """Stands in for the LLM: clicks controls by name, recording every prompt it was shown."""
-
-    model = "scripted"
-
-    def __init__(self, script: list[tuple[str, str | None]]):
-        self.script = list(script)
-        self.prompts: list[str] = []
-
-    def decide(self, system, prompt, tools):
-        self.prompts.append(prompt)
-        tool, name = self.script.pop(0)
-        if tool != "click":
-            return ToolCall(tool, {"summary": "done", "reason": "stop"})
-        ref = re.search(rf'\[(f\d+-\d+)\] \w+ "{re.escape(name)}"', prompt).group(1)
-        return ToolCall("click", {"ref": ref, "rationale": f"click {name}"})
-
-
-def discover(make_surface, tmp_path, script):
+def discover(make_surface, tmp_path, decider_class, script):
     surface = make_surface()
-    decider = ScriptedDecider(script)
+    decider = decider_class(script)
     redactor = Redactor()
     log = RunLog(tmp_path, "discovery", redactor)
     trace = DiscoveryAgent(surface, decider, log, redactor, max_steps=5).run(
@@ -191,16 +170,16 @@ def discover(make_surface, tmp_path, script):
     return trace, decider
 
 
-def test_discovery_reports_a_blocked_action_back_to_the_model(make_surface, tmp_path, served):
-    trace, decider = discover(make_surface, tmp_path, [("click", "Admin"), ("done", None)])
+def test_discovery_reports_a_blocked_action_back_to_the_model(make_surface, tmp_path, served, scripted_decider):
+    trace, decider = discover(make_surface, tmp_path, scripted_decider, [("click", "Admin"), ("done", None)])
     assert trace.status == "success"
     assert trace.steps[0].ok is False and "blocked by policy" in trace.steps[0].error
     assert "blocked by policy" in decider.prompts[1]  # the model is told, so it can change course
     assert "/admin/reset" not in served
 
 
-def test_discovery_escalates_at_an_irreversible_control(make_surface, tmp_path, served):
-    trace, _ = discover(make_surface, tmp_path, [("click", "Confirm")])
+def test_discovery_escalates_at_an_irreversible_control(make_surface, tmp_path, served, scripted_decider):
+    trace, _ = discover(make_surface, tmp_path, scripted_decider, [("click", "Confirm")])
     assert trace.status == "escalated"
     assert "needs human approval" in trace.reason
     assert "/review" not in served

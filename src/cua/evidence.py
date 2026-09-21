@@ -3,6 +3,7 @@ Everything written here goes through the Redactor first."""
 
 import json
 import secrets
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,20 +21,25 @@ class RunLog:
         self.dir = root / kind / self.run_id
         (self.dir / "screenshots").mkdir(parents=True, exist_ok=True)
         self.redactor = redactor
+        self.recent: deque[dict] = deque(maxlen=12)  # context for intervention requests
         self._seq = 0
         self._events = (self.dir / "events.jsonl").open("a", encoding="utf-8")
 
     def event(self, type_: str, **data: Any) -> None:
         self._seq += 1
-        record = {"ts": _now(), "run_id": self.run_id, "seq": self._seq, "type": type_, **self.redactor.scrub(data)}
+        envelope = {"ts": _now(), "run_id": self.run_id, "seq": self._seq, "type": type_}
+        # The envelope always wins: a payload field called "type" or "ts" must not relabel an event.
+        record = {**envelope, **{k: v for k, v in self.redactor.scrub(data).items() if k not in envelope}}
         self._events.write(json.dumps(record, default=str) + "\n")
         self._events.flush()
+        self.recent.append({k: v for k, v in record.items() if k not in ("run_id",)})
 
     def screenshot_path(self, label: str) -> Path:
         return self.dir / "screenshots" / f"{self._seq + 1:03d}-{label}.png"
 
     def write_json(self, name: str, obj: Any) -> Path:
         path = self.dir / name
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.redactor.scrub(obj), indent=2, default=str), encoding="utf-8")
         return path
 

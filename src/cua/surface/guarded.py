@@ -23,11 +23,15 @@ Approver = Callable[[ApprovalRequest], bool]
 
 
 class GuardedSurface:
-    def __init__(self, inner: WebSurface, policy: Policy, log: RunLog | None = None, approver: Approver | None = None):
+    def __init__(self, inner: WebSurface, policy: Policy, log: RunLog | None = None, approver: Approver | None = None,
+                 control=None):
         self.inner = inner
         self.policy = policy
         self.log = log
         self.approver = approver
+        # cua.handoff.SessionControl, when a human can take over: automation may only act
+        # while it holds control of the session.
+        self.control = control
 
     # ---- checked actions ------------------------------------------------------
 
@@ -96,6 +100,8 @@ class GuardedSurface:
     # ---- internals ---------------------------------------------------------
 
     def _require(self, action: Action) -> None:
+        if self.control is not None and not self.control.is_automation():
+            self._blocked(action, "", f"automation is not in control of the session ({self.control.state.value})")
         reason = self.policy.action_violation(action)
         if reason:
             self._blocked(action, "", reason)

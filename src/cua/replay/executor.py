@@ -5,23 +5,29 @@ Per step:
      outcomes, then hard failures) before touching anything;
   2. resolve the target by trying its strategies in order, requiring a unique match,
      and recording which one won (a fallback winning is a drift signal);
-  3. refuse irreversible steps unless a human has approved;
-  4. act;
-  5. wait for the step's checkpoint on a condition, never a fixed sleep, re-classifying
+  3. act, through the policy gate (which holds irreversible steps for a human's approval);
+  4. wait for the step's checkpoint on a condition, never a fixed sleep, re-classifying
      the state on every tick so "no such member" surfaces as a business outcome rather
      than a checkpoint timeout;
-  6. verify the capability's success condition and return typed outputs.
+  5. verify the capability's success condition and return typed outputs.
+
+When a human is attached (a Handoff), a step that needs approval, or that is stuck (target not
+found, checkpoint not reached), becomes an intervention on the same live session instead of a
+result: the operator approves, or takes control and hands it back, and replay re-verifies the
+state before carrying on. Without one, the caller gets `escalated` / `failed` as usual.
 """
 
 import re
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from cua.artifact.schema import CapabilityArtifact, Condition, RecoverableHandler, Step
 from cua.evidence import RunLog
+from cua.handoff import Handoff, request_record
 from cua.redaction import Redactor
 from cua.replay.result import (
-    Recovery, ReplayBusinessOutcome, ReplayEscalated, ReplayFailure, ReplayResult, ReplaySuccess,
+    HandoffSummary, Recovery, ReplayBusinessOutcome, ReplayEscalated, ReplayFailure, ReplayResult, ReplaySuccess,
 )
 from cua.session import FormLogin
 from cua.surface import (
@@ -32,11 +38,21 @@ from cua.values import ParseError, parse_value
 PARAM_RE = re.compile(r"\{\{inputs\.(\w+)\}\}")
 STEP_TIMEOUT_S = 15.0
 RESTART = object()  # sentinel: re-authenticated, run the flow again from the top
+STUCK_CODES = {"LOCATOR_NOT_FOUND", "CHECKPOINT_FAILED"}  # states a human at the screen can fix
+
+
+@dataclass
+class _NeedsHuman:
+    kind: str                            # "approval" | "stuck"
+    reason: str
+    control: str | None = None           # for approvals: the control awaiting approval
+    failure: ReplayFailure | None = None  # for stuck: what the caller gets if nobody helps
 
 
 class ReplayExecutor:
     def __init__(self, surface: Surface, artifact: CapabilityArtifact, log: RunLog, redactor: Redactor,
-                 session=None, step_timeout_s: float = STEP_TIMEOUT_S):
+                 session=None, step_timeout_s: float = STEP_TIMEOUT_S, handoff: Handoff | None = None,
+                 max_handoffs: int = 3):
         # `surface` should be a GuardedSurface: policy (allowlist, irreversible approval)
         # is enforced there, not here, so replay and discovery cannot drift apart.
         self.surface = surface
@@ -45,6 +61,9 @@ class ReplayExecutor:
         self.redactor = redactor
         self.session = session or FormLogin()
         self.step_timeout_s = step_timeout_s
+        self.handoff = handoff
+        self.max_handoffs = max_handoffs
+        self._handoffs: list[HandoffSummary] = []
         self._recovered: list[Recovery] = []
         self._handler_counts: dict[str, int] = {}
         self._strategies: dict[str, str] = {}
@@ -83,15 +102,54 @@ class ReplayExecutor:
             return self._fail("SESSION_FAILED", None, expected=f"entry {self.artifact.entry}", observed=str(e))
 
         for step in self.artifact.steps:
-            snap, verdict = self._classified_state(step.id)
-            if verdict is not None:
-                return verdict
-            outcome = self._run_step(step, inputs, outputs)
+            outcome = self._run_with_handoff(step, inputs, outputs)
             if outcome is not None:
                 return outcome
             self._steps_done += 1
 
         return self._verify_success(outputs)
+
+    def _run_with_handoff(self, step: Step, inputs: dict[str, Any], outputs: dict[str, Any]) -> ReplayResult | object | None:
+        while True:
+            snap, verdict = self._classified_state(step.id)
+            if verdict is not None:
+                return verdict
+            outcome = self._run_step(step, inputs, outputs)
+            needs = self._needs_human(outcome)
+            if needs is None:
+                return outcome
+            if self.handoff is None or len(self._handoffs) >= self.max_handoffs:
+                if needs.failure is not None:
+                    return needs.failure
+                return self._escalate(needs.reason, step.id, kind=needs.kind)
+
+            it = self.handoff.escalate(needs.kind, self.artifact.capability.id, step.id, needs.reason, needs.control)
+            self._handoffs.append(HandoffSummary(id=it.id, kind=it.kind, step=step.id, resolution=it.resolution or "",
+                                                 operator=it.operator, human_actions=len(it.human_actions)))
+            if it.resolution == "approved":
+                continue  # retry: the gate lets the approved control through exactly once
+            if it.resolution == "resumed":
+                if self._verify_after_human(step):
+                    return None  # the human completed this step; carry on from the next one
+                continue  # not done: retry it (an irreversible step asks for approval again)
+            return self._escalated_result(f"operator {it.resolution} intervention {it.id}: {needs.reason}",
+                                          step.id, intervention_id=it.id, screenshot=it.screenshot)
+
+    def _needs_human(self, outcome) -> _NeedsHuman | None:
+        if isinstance(outcome, _NeedsHuman):
+            return outcome
+        if isinstance(outcome, ReplayFailure) and outcome.code in STUCK_CODES:
+            return _NeedsHuman("stuck", f"{outcome.code}: expected {outcome.expected}; observed {outcome.observed}",
+                               failure=outcome)
+        return None
+
+    def _verify_after_human(self, step: Step) -> bool:
+        """VERIFYING: look, do not act. Did the human leave the app where this step should have?"""
+        snap = self.surface.observe()
+        done = step.checkpoint is not None and self._matches(step.checkpoint, snap)
+        self.handoff.verified(done, f"{step.id} checkpoint {self._describe(step.checkpoint)}; "
+                                    f"observed {self._describe_state(snap)}")
+        return done
 
     def _run_step(self, step: Step, inputs: dict[str, Any], outputs: dict[str, Any]) -> ReplayResult | object | None:
         try:
@@ -128,7 +186,7 @@ class ReplayExecutor:
         except KeyError as e:
             return self._fail("INPUT_INVALID", step.id, expected=f"input {e}", observed="not supplied")
         except ApprovalRequired as e:
-            return self._escalate(f"step {step.id}: {e}", step.id)
+            return _NeedsHuman("approval", f"step {step.id}: {e}", control=e.request.control)
         except PolicyBlocked as e:
             return self._fail("POLICY_VIOLATION", step.id, expected=f"{step.action} within policy",
                               observed=e.reason, screenshot=self._shot(f"{step.id}-policy"))
@@ -303,7 +361,7 @@ class ReplayExecutor:
         return {"run_id": self.log.run_id, "capability": self.artifact.capability.id,
                 "version": self.artifact.capability.version, "evidence": str(self.log.dir),
                 "steps_completed": self._steps_done, "recovered": self._recovered,
-                "strategies_used": self._strategies}
+                "strategies_used": self._strategies, "handoffs": self._handoffs}
 
     def _fail(self, code: str, step: str | None, expected: str | None = None, observed: str | None = None,
               screenshot: str | None = None, retryable: bool = False) -> ReplayFailure:
@@ -311,10 +369,19 @@ class ReplayExecutor:
                              screenshot=screenshot or self._shot(f"{step or 'run'}-{code.lower()}"),
                              retryable=retryable, **self._common())
 
-    def _escalate(self, reason: str, step: str | None) -> ReplayEscalated:
-        self.log.event("escalation_raised", step=step, reason=reason)
-        return ReplayEscalated(reason=reason, step=step, screenshot=self._shot(f"{step or 'run'}-escalated"),
-                               **self._common())
+    def _escalate(self, reason: str, step: str | None, kind: str = "stuck") -> ReplayEscalated:
+        """No operator attached: write the intervention request anyway, as a queued request an
+        operator system could pick up, and return `escalated` pointing at it."""
+        it = request_record(self.log, self.surface, self.redactor, kind, self.artifact.capability.id,
+                            step or "run", reason)
+        self.log.write_json(f"interventions/{it.id}.json", it.to_dict())
+        self.log.event("escalation_raised", step=step, reason=reason, intervention=it.id, operator_attached=False)
+        return self._escalated_result(reason, step, intervention_id=it.id, screenshot=it.screenshot)
+
+    def _escalated_result(self, reason: str, step: str | None, intervention_id: str | None = None,
+                          screenshot: str | None = None) -> ReplayEscalated:
+        return ReplayEscalated(reason=reason, step=step, intervention_id=intervention_id,
+                               screenshot=screenshot or self._shot(f"{step or 'run'}-escalated"), **self._common())
 
     def _shot(self, label: str) -> str | None:
         path = self.log.screenshot_path(re.sub(r"[^a-z0-9._-]+", "-", label.lower()))

@@ -8,10 +8,18 @@ Discovery runs also hold `trace.json` and the `capability.yaml` they produced.
 
 | Run | Goal | Result |
 |---|---|---|
-| [discovery-20260917-145918-e415](discovery/discovery-20260917-145918-e415) | "look up member 10023 and read their savings balance" | success; recorded [capabilities/legacycore/member_savings_balance/v1.yaml](../capabilities/legacycore/member_savings_balance/v1.yaml) |
+| [discovery-20260917-145918-e415](discovery/discovery-20260917-145918-e415) | "look up member 10023 and read their savings balance" | success; recorded [member_savings_balance/v1](../capabilities/legacycore/member_savings_balance/v1.yaml) |
+| [discovery-20260921-134651-76c5](discovery/discovery-20260921-134651-76c5) | "For member 10023, open a new Money Market sub-account nicknamed Rainy Day with an initial deposit of 250.00, and return the new account number from the confirmation screen" | success after **one human approval**; recorded [open_sub_account/v1](../capabilities/legacycore/open_sub_account/v1.yaml) |
 
-Model: `gemini-3.6-flash`. Three actions: type the member ID (flagged as the `member_id`
-parameter), click Search, extract the Share Savings / Balance cell.
+Model: `gemini-3.6-flash`. The read flow took three actions: type the member ID (flagged as
+the `member_id` parameter), click Search, extract the Share Savings / Balance cell.
+
+The write flow took nine. At step 8 the model asked to click **Confirm**; the policy gate, not
+the model, classified that as irreversible and raised intervention
+[`int-31b460`](discovery/discovery-20260921-134651-76c5/interventions/int-31b460.json) on the
+operator console. It was approved there, the gate let exactly that click through once, and the
+model carried on to extract the new account number. The recorded artifact carries
+`provenance.approvals: 1` and marks the Confirm step `irreversible`.
 
 ## Replay — no LLM in the decision loop
 
@@ -30,8 +38,24 @@ land mid-run.
 Recoverable conditions never appear as a status: they are handled inside the run and listed in
 `recovered`.
 
-## Escalation
+## Human in the loop — replaying the write flow
 
-Covered by tests today, not yet by a captured run: an irreversible step returns
-`escalated` unless a human approves it (`tests/test_replay.py`). The human-takeover
-handoff is the next piece of work.
+`open_sub_account` ends in an irreversible Confirm, so replay always needs a person there. The
+same inputs (`member_id=10023`, `nickname=Rainy Day`, `initial_deposit=250.00`), three ways:
+
+| Run | Operator | Result |
+|---|---|---|
+| [replay-20260921-135449-960b](replay/replay-20260921-135449-960b) | none attached | `escalated` at `s8_click_confirm`; the request is still written, as a queued [intervention](replay/replay-20260921-135449-960b/interventions) |
+| [replay-20260921-135459-c649](replay/replay-20260921-135459-c649) | **approves** on the console | `success`: the gate let Confirm through once; `new_account_number` returned to the caller (redacted in the evidence) |
+| [replay-20260921-135630-0b43](replay/replay-20260921-135630-0b43) | **takes control** of the same live session and clicks Confirm by hand, then resumes | `success`: replay verified the step's checkpoint ("Sub-Account Opened") before continuing to the extract step |
+
+In the take-over run, the intervention record
+([`interventions/*.json`](replay/replay-20260921-135630-0b43/interventions)) holds the request
+(step, reason, where, a screenshot of the review screen, the last events), the full control
+history `awaiting_human → human_control → verifying → automation`, and the human's own action
+(`click "Confirm"` on `/accounts/review`). The same click appears in `events.jsonl` as a
+`human_action` with `actor: human`.
+
+The operator here is `cua operator`, a stand-in that uses exactly what a person uses: the
+console's API for approve / claim / resume, and the live browser attached over CDP for the
+click. See the README for doing it yourself in a visible browser.

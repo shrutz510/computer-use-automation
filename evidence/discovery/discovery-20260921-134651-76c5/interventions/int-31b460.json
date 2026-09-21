@@ -1,0 +1,276 @@
+{
+  "id": "int-31b460",
+  "kind": "approval",
+  "run_id": "discovery-20260921-134651-76c5",
+  "subject": "For member 10023, open a new Money Market sub-account nicknamed Rainy Day with an initial deposit of 250.00, and return the new account number from the confirmation screen",
+  "step": "step8",
+  "reason": "click 'Confirm' needs human approval (matches the irreversible-name rule)",
+  "url": "nav:/nav; content:/accounts/review",
+  "screenshot": "screenshots/020-step8-intervention.png",
+  "recent_events": [
+    {
+      "ts": "2026-09-21T17:47:31.918+00:00",
+      "seq": 8,
+      "type": "action",
+      "step": 3,
+      "tool": "click",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "role",
+            "role": "button",
+            "name": "Open Sub-Account"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/accounts/new\"] input[type=\"submit\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > input:nth-of-type(2)"
+          }
+        ],
+        "description": "button \"Open Sub-Account\""
+      },
+      "value": null,
+      "param_name": null,
+      "output_name": null,
+      "ok": true,
+      "error": null,
+      "rationale": "Click 'Open Sub-Account' button to begin creating a new sub-account for the member.",
+      "screen_after": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:47:49.836+00:00",
+      "seq": 9,
+      "type": "decision",
+      "step": 4,
+      "tool": "select_option",
+      "args": {
+        "option": "Money Market",
+        "rationale": "Select Money Market as the sub-account type.",
+        "ref": "f2-0"
+      },
+      "screen": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:47:49.900+00:00",
+      "seq": 10,
+      "type": "action",
+      "step": 4,
+      "tool": "select_option",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "label",
+            "text": "Account Type"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/accounts/review\"] select[name=\"f1\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(2) > td:nth-of-type(2) > select:nth-of-type(1)"
+          }
+        ],
+        "description": "combobox \"Account Type\""
+      },
+      "value": "Money Market",
+      "param_name": null,
+      "output_name": null,
+      "ok": true,
+      "error": null,
+      "rationale": "Select Money Market as the sub-account type.",
+      "screen_after": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:49:06.737+00:00",
+      "seq": 11,
+      "type": "decision",
+      "step": 5,
+      "tool": "type_text",
+      "args": {
+        "rationale": "Type the sub-account nickname into the Nickname field.",
+        "text": "Rainy Day",
+        "ref": "f2-1",
+        "param_name": "nickname"
+      },
+      "screen": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:49:06.815+00:00",
+      "seq": 12,
+      "type": "action",
+      "step": 5,
+      "tool": "type_text",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "label",
+            "text": "Nickname"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/accounts/review\"] input[name=\"f2\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(3) > td:nth-of-type(2) > input:nth-of-type(1)"
+          }
+        ],
+        "description": "textbox \"Nickname\""
+      },
+      "value": "Rainy Day",
+      "param_name": "nickname",
+      "output_name": null,
+      "ok": true,
+      "error": null,
+      "rationale": "Type the sub-account nickname into the Nickname field.",
+      "screen_after": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:49:26.308+00:00",
+      "seq": 13,
+      "type": "decision",
+      "step": 6,
+      "tool": "type_text",
+      "args": {
+        "rationale": "Enter initial deposit amount of 250.00 into Initial Deposit field.",
+        "text": "250.00",
+        "ref": "f2-2",
+        "param_name": "initial_deposit"
+      },
+      "screen": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:49:26.380+00:00",
+      "seq": 14,
+      "type": "action",
+      "step": 6,
+      "tool": "type_text",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "label",
+            "text": "Initial Deposit"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/accounts/review\"] input[name=\"f3\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(4) > td:nth-of-type(2) > input:nth-of-type(1)"
+          }
+        ],
+        "description": "textbox \"Initial Deposit\""
+      },
+      "value": "250.00",
+      "param_name": "initial_deposit",
+      "output_name": null,
+      "ok": true,
+      "error": null,
+      "rationale": "Enter initial deposit amount of 250.00 into Initial Deposit field.",
+      "screen_after": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:49:52.570+00:00",
+      "seq": 15,
+      "type": "decision",
+      "step": 7,
+      "tool": "click",
+      "args": {
+        "ref": "f2-3",
+        "rationale": "Click Continue to proceed with opening the new sub-account."
+      },
+      "screen": "c78a5228cfe5"
+    },
+    {
+      "ts": "2026-09-21T17:49:53.246+00:00",
+      "seq": 16,
+      "type": "action",
+      "step": 7,
+      "tool": "click",
+      "target": {
+        "frame": "content",
+        "strategies": [
+          {
+            "by": "role",
+            "role": "button",
+            "name": "Continue"
+          },
+          {
+            "by": "css",
+            "value": "form[action=\"/accounts/review\"] input[type=\"submit\"]"
+          },
+          {
+            "by": "css",
+            "value": "html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1) > tr:nth-of-type(5) > td:nth-of-type(2) > input:nth-of-type(1)"
+          }
+        ],
+        "description": "button \"Continue\""
+      },
+      "value": null,
+      "param_name": null,
+      "output_name": null,
+      "ok": true,
+      "error": null,
+      "rationale": "Click Continue to proceed with opening the new sub-account.",
+      "screen_after": "47ee102b6d20"
+    },
+    {
+      "ts": "2026-09-21T17:50:08.308+00:00",
+      "seq": 17,
+      "type": "decision",
+      "step": 8,
+      "tool": "click",
+      "args": {
+        "ref": "f2-0",
+        "rationale": "Confirm the creation of the new sub-account."
+      },
+      "screen": "47ee102b6d20"
+    },
+    {
+      "ts": "2026-09-21T17:50:08.340+00:00",
+      "seq": 18,
+      "type": "approval_requested",
+      "policy": "legacycore@1",
+      "control": "Confirm",
+      "reason": "matches the irreversible-name rule",
+      "url": "http://localhost:5001/accounts/review"
+    },
+    {
+      "ts": "2026-09-21T17:50:08.340+00:00",
+      "seq": 19,
+      "type": "approval_missing",
+      "policy": "legacycore@1",
+      "control": "Confirm"
+    }
+  ],
+  "created_at": "2026-09-21T17:50:08+00:00",
+  "control": "Confirm",
+  "resolution": "approved",
+  "operator": "shruti-sim",
+  "human_actions": [],
+  "history": [
+    {
+      "ts": "2026-09-21T17:50:08+00:00",
+      "from": "automation",
+      "to": "awaiting_human",
+      "actor": "automation",
+      "note": "click 'Confirm' needs human approval (matches the irreversible-name rule)"
+    },
+    {
+      "ts": "2026-09-21T17:50:08+00:00",
+      "from": "awaiting_human",
+      "to": "automation",
+      "actor": "shruti-sim",
+      "note": "approved 'Confirm'"
+    }
+  ]
+}

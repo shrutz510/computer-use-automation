@@ -4,14 +4,11 @@ These drive the artifact that discovery actually recorded, so a recording that c
 replayed fails the suite.
 """
 
-import os
-import threading
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 from playwright.sync_api import sync_playwright
-from werkzeug.serving import make_server
 
 from cua.artifact import store
 from cua.evidence import RunLog
@@ -21,22 +18,8 @@ from cua.replay import ReplayExecutor
 from cua.session import FormLogin
 from cua.surface.guarded import GuardedSurface
 from cua.surface.web import WebSurface
-from target_app import create_app
 
 ARTIFACT = Path("capabilities/legacycore/member_savings_balance/v1.yaml")
-
-
-@pytest.fixture(scope="module")
-def server():
-    os.environ["TARGET_APP_USER"] = "teller"
-    os.environ["TARGET_APP_PASSWORD"] = "teller-pass"
-    app = create_app()
-    srv = make_server("127.0.0.1", 0, app, threaded=True)
-    thread = threading.Thread(target=srv.serve_forever, daemon=True)
-    thread.start()
-    yield f"http://127.0.0.1:{srv.server_port}", app
-    srv.shutdown()
-    thread.join(timeout=5)
 
 
 @pytest.fixture(scope="module")
@@ -48,8 +31,8 @@ def browser():
 
 
 @pytest.fixture
-def replay(server, browser, tmp_path):
-    base_url, app = server
+def replay(live_app, browser, tmp_path):
+    base_url, app = live_app
     base_artifact = store.load(ARTIFACT)
     policy = load_policy("legacycore").model_copy(update={"allowed_origins": [base_url]})
 

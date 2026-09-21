@@ -1,0 +1,24 @@
+{
+  "run_id": "replay-20260921-135449-960b",
+  "capability": "legacycore.open_sub_account",
+  "version": 1,
+  "evidence": "evidence/replay/replay-20260921-135449-960b",
+  "steps_completed": 7,
+  "recovered": [],
+  "strategies_used": {
+    "s1_type_member_id": "label#0",
+    "s2_click_search": "role#0",
+    "s3_click_open_sub_account": "role#0",
+    "s4_select_account_type": "label#0",
+    "s5_type_nickname": "label#0",
+    "s6_type_initial_deposit": "label#0",
+    "s7_click_continue": "role#0",
+    "s8_click_confirm": "role#0"
+  },
+  "handoffs": [],
+  "status": "escalated",
+  "reason": "step s8_click_confirm: click 'Confirm' needs human approval (declared irreversible in the artifact)",
+  "step": "s8_click_confirm",
+  "intervention_id": "int-f0963d",
+  "screenshot": "screenshots/012-s8_click_confirm-intervention.png"
+}

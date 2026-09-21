@@ -1,0 +1,253 @@
+schema_version: '1.0'
+capability:
+  id: legacycore.open_sub_account
+  name: open_sub_account
+  version: 1
+  status: draft
+  description: For member {{inputs.member_id}}, open a new Money Market sub-account nicknamed {{inputs.nickname}}
+    with an initial deposit of {{inputs.initial_deposit}}, and return the new account number from the
+    confirmation screen
+  app:
+    key: legacycore
+    vendor: LegacyCore
+    product: CoreServ
+    version_fingerprint: CoreServ 4.2
+    surface: legacy_web
+  risk_level: irreversible
+  provenance:
+    recorded_at: '2026-09-21T17:51:19+00:00'
+    goal: For member 10023, open a new Money Market sub-account nicknamed Rainy Day with an initial deposit
+      of 250.00, and return the new account number from the confirmation screen
+    discovery_run: discovery-20260921-134651-76c5
+    model: gemini-3.6-flash
+    evidence_path: evidence/discovery/discovery-20260921-134651-76c5
+    approvals: 1
+    human_actions: 0
+preconditions:
+- authenticated_session
+entry: /
+inputs:
+  member_id:
+    type: string
+    required: true
+    pattern: ^\d{5}$
+    sensitive: false
+    example: '10023'
+  nickname:
+    type: string
+    required: true
+    sensitive: false
+    example: Rainy Day
+  initial_deposit:
+    type: decimal
+    required: true
+    sensitive: false
+    example: '250.00'
+outputs:
+  new_account_number:
+    type: string
+    sensitive: true
+    source_step: s9_extract_new_account_number
+steps:
+- id: s1_type_member_id
+  action: type
+  target:
+    frame: content
+    strategies:
+    - by: label
+      text: Member ID
+    - by: css
+      value: form[action="/members/find"] input[name="mid"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(1) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: textbox "Member ID"
+  value: '{{inputs.member_id}}'
+  risk: safe
+- id: s2_click_search
+  action: click
+  target:
+    frame: content
+    strategies:
+    - by: role
+      role: button
+      name: Search
+    - by: css
+      value: form[action="/members/find"] input[type="submit"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(2) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: button "Search"
+  risk: reversible
+  checkpoint:
+    frame: content
+    title: Member Detail
+    url_matches: ^/members/[^/]+$
+- id: s3_click_open_sub_account
+  action: click
+  target:
+    frame: content
+    strategies:
+    - by: role
+      role: button
+      name: Open Sub-Account
+    - by: css
+      value: form[action="/accounts/new"] input[type="submit"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > input:nth-of-type(2)
+    description: button "Open Sub-Account"
+  risk: safe
+  checkpoint:
+    frame: content
+    title: Open Sub-Account
+    url_matches: ^/accounts/new\?mid=[^/]+$
+- id: s4_select_account_type
+  action: select
+  target:
+    frame: content
+    strategies:
+    - by: label
+      text: Account Type
+    - by: css
+      value: form[action="/accounts/review"] select[name="f1"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(2) > td:nth-of-type(2) > select:nth-of-type(1)
+    description: combobox "Account Type"
+  value: Money Market
+  risk: safe
+- id: s5_type_nickname
+  action: type
+  target:
+    frame: content
+    strategies:
+    - by: label
+      text: Nickname
+    - by: css
+      value: form[action="/accounts/review"] input[name="f2"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(3) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: textbox "Nickname"
+  value: '{{inputs.nickname}}'
+  risk: safe
+- id: s6_type_initial_deposit
+  action: type
+  target:
+    frame: content
+    strategies:
+    - by: label
+      text: Initial Deposit
+    - by: css
+      value: form[action="/accounts/review"] input[name="f3"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(4) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: textbox "Initial Deposit"
+  value: '{{inputs.initial_deposit}}'
+  risk: safe
+- id: s7_click_continue
+  action: click
+  target:
+    frame: content
+    strategies:
+    - by: role
+      role: button
+      name: Continue
+    - by: css
+      value: form[action="/accounts/review"] input[type="submit"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > table:nth-of-type(1) > tbody:nth-of-type(1)
+        > tr:nth-of-type(5) > td:nth-of-type(2) > input:nth-of-type(1)
+    description: button "Continue"
+  risk: reversible
+  checkpoint:
+    frame: content
+    title: Review Sub-Account
+    url_matches: ^/accounts/review$
+- id: s8_click_confirm
+  action: click
+  target:
+    frame: content
+    strategies:
+    - by: role
+      role: button
+      name: Confirm
+    - by: css
+      value: form[action="/accounts/confirm"] input[type="submit"]
+    - by: css
+      value: html > body:nth-of-type(1) > form:nth-of-type(1) > input:nth-of-type(5)
+    description: button "Confirm"
+  risk: irreversible
+  checkpoint:
+    frame: content
+    title: Sub-Account Opened
+    url_matches: ^/accounts/confirm$
+- id: s9_extract_new_account_number
+  action: extract
+  target:
+    frame: content
+    strategies:
+    - by: cell
+      row_header: New Account Number
+    - by: css
+      value: html > body:nth-of-type(1) > table:nth-of-type(2) > tbody:nth-of-type(1) > tr:nth-of-type(1)
+        > td:nth-of-type(2)
+    description: cell "New Account Number"
+  into: outputs.new_account_number
+  parse: string
+  risk: safe
+success:
+  checkpoint:
+    frame: content
+    title: Sub-Account Opened
+    url_matches: ^/accounts/confirm$
+  outputs_present:
+  - new_account_number
+detectors_pack: legacycore@1
+detectors:
+  recoverable:
+  - id: system_notice
+    when:
+      text_visible: System Notice
+    do: click
+    target:
+      frame: content
+      strategies:
+      - by: role
+        role: button
+        name: Acknowledge
+      description: button "Acknowledge"
+    max_times: 2
+  - id: session_expired
+    when:
+      text_visible: Your session has expired
+    do: reauthenticate
+    max_times: 1
+  business_outcomes:
+  - code: MEMBER_NOT_FOUND
+    when:
+      text_visible: No member found
+    retryable: false
+  - code: MEMBER_NOT_ELIGIBLE
+    when:
+      text_visible: not eligible for new sub-accounts
+    retryable: false
+  - code: INPUT_REJECTED
+    when:
+      text_visible: Member ID must be
+    retryable: false
+  - code: DEPOSIT_OUT_OF_RANGE
+    when:
+      text_visible: Initial deposit must be
+    retryable: false
+  hard_failures:
+  - code: APP_ERROR
+    when:
+      text_visible: Application Error
+    retryable: true
+  - code: PERMISSION_DENIED
+    when:
+      text_visible: Insufficient privileges
+    retryable: false
+tenant_overrides: {}

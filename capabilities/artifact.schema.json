@@ -433,6 +433,16 @@
         "evidence_path": {
           "title": "Evidence Path",
           "type": "string"
+        },
+        "approvals": {
+          "default": 0,
+          "title": "Approvals",
+          "type": "integer"
+        },
+        "human_actions": {
+          "default": 0,
+          "title": "Human Actions",
+          "type": "integer"
         }
       },
       "required": [

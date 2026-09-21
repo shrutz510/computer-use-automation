@@ -47,3 +47,5 @@ class Trace(BaseModel):
     reason: str = ""
     steps: list[TraceStep] = []
     outputs: dict[str, str] = {}
+    handoffs: list[dict] = []  # interventions during discovery; full records under interventions/
+    human_actions: int = 0     # actions a person performed; not part of the recorded flow

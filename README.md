@@ -123,6 +123,46 @@ The CLI refuses to start against a target the policy does not list:
 # refusing to run against https://example.com: origin https://example.com is not allowlisted
 ```
 
+## Human in the loop
+
+`open_sub_account` ends in an irreversible **Confirm**, so it can't finish without a person.
+Try it yourself, in a visible browser:
+
+```bash
+W=capabilities/legacycore/open_sub_account/v1.yaml
+.venv/bin/cua replay $W --input member_id=10023 --input nickname="Rainy Day" --input initial_deposit=250.00 --console --headed
+```
+
+When it reaches Confirm, the run pauses and prints `HUMAN NEEDED`. Open
+http://127.0.0.1:8765 to see the request: what, which step, why, where, a screenshot, and the
+last events. From there, either:
+
+- **Approve** — automation clicks Confirm itself (exactly once) and finishes; or
+- **Take control** — you get the lease and use the *same* browser window the automation was
+  driving. Click Confirm yourself, then **Resume automation**. Replay checks that the page
+  really is "Sub-Account Opened" before extracting the new account number. If you resume
+  without finishing the step, it asks again.
+- **Abort** — the run ends `escalated`.
+
+Without `--console`, the same run returns `escalated` and writes the request to
+`interventions/` as a queued item. Discovery accepts `--console` too: an approval lets the
+model's own click through, and after a take-over the model carries on from wherever you left
+the app.
+
+Who is in control is a single state with a lease: `automation → awaiting_human →
+human_control → verifying → automation`. The policy gate refuses every automated action unless
+automation holds control, and only the lease holder can hand it back. Your clicks and field
+changes are recorded as `human_action` events with `actor: human`; passwords and sensitive
+fields never record a value.
+
+Without a person at the keyboard, `cua operator` stands in for one, through the same console
+API and the live browser over CDP:
+
+```bash
+.venv/bin/cua replay $W --input member_id=10023 --input nickname="Rainy Day" --input initial_deposit=250.00 --console --cdp-port 9222 &
+.venv/bin/cua operator --mode takeover --cdp-url http://127.0.0.1:9222 --click Confirm   # or --mode approve / abort
+```
+
 ## Tests
 
 ```bash
@@ -134,7 +174,9 @@ hostile fixture HTML, trace → artifact recording, replay against the live app 
 branch of the taxonomy (success, business outcome, recovered interstitial, recovered session
 expiry, hard failure, broken locator, escalation on an irreversible step), and the policy: route
 rules, both enforcement layers, approval, and discovery obeying the gate (driven by a scripted
-stand-in for the LLM). No API key needed.
+stand-in for the LLM); and the handoff: the control state machine and lease, the console, and
+real approve / take-over / resume-without-finishing / abort handoffs on a live session for
+both replay and discovery. No API key needed.
 
 ## Status
 
@@ -142,7 +184,7 @@ Built: the mock target app; the Surface abstraction (Playwright, frame-aware); t
 observe → decide → act discovery loop with stuck detection; the recorder and the versioned
 capability artifact; deterministic replay with the error taxonomy, condition-based waits and
 drift signals; the policy allowlist with two enforcement layers and irreversible-action
-approval; redaction and run evidence.
+approval; human-in-the-loop escalation with approve / take over the live session / resume, an
+operator console and human-action capture; redaction and run evidence.
 
-Next: human escalation/handoff (pause, take over the live session, resume). The policy gate's
-approval hook is the seam it plugs into. See `REPORT.md` for the design and the deliberate cuts.
+See `REPORT.md` for the design and the deliberate cuts.

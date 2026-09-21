@@ -6,6 +6,7 @@ from cua.agent.llm import Decider, DeciderError, ToolCall
 from cua.agent.tools import SYSTEM_PROMPT, TOOLS
 from cua.agent.trace import FrameState, Trace, TraceStep
 from cua.evidence import RunLog
+from cua.handoff import Handoff, Intervention
 from cua.redaction import Redactor
 from cua.surface import ApprovalRequired, PolicyBlocked, Snapshot, Surface, SurfaceError
 
@@ -43,12 +44,15 @@ def render_screen(snap: Snapshot, redactor: Redactor) -> str:
 
 
 class DiscoveryAgent:
-    def __init__(self, surface: Surface, decider: Decider, log: RunLog, redactor: Redactor, max_steps: int = 25):
+    def __init__(self, surface: Surface, decider: Decider, log: RunLog, redactor: Redactor, max_steps: int = 25,
+                 handoff: Handoff | None = None, max_handoffs: int = 3):
         self.surface = surface
         self.decider = decider
         self.log = log
         self.redactor = redactor
         self.max_steps = max_steps
+        self.handoff = handoff
+        self.max_handoffs = max_handoffs
 
     def run(self, goal: str, app: str, base_url: str, entry_route: str) -> Trace:
         trace = Trace(run_id=self.log.run_id, goal=goal, app=app, base_url=base_url, entry_route=entry_route,
@@ -72,35 +76,75 @@ class DiscoveryAgent:
             if call.name == "done":
                 self._shot(trace, "done")
                 return self._finish(trace, "success", call.args.get("summary", ""))
-            if call.name == "escalate":
-                self._shot(trace, "escalate")
-                return self._finish(trace, "escalated", call.args.get("reason", ""))
 
-            key = (call.name, call.args.get("ref") and snap.elements.get(call.args["ref"]) and
-                   snap.elements[call.args["ref"]].css_path, call.args.get("text") or call.args.get("option"))
-            recent_actions = (recent_actions + [key])[-MAX_REPEATS:]
-            if len(recent_actions) == MAX_REPEATS and len(set(recent_actions)) == 1:
-                self._shot(trace, "stuck")
-                return self._finish(trace, "escalated", f"stuck: repeated {call.name} on the same target {MAX_REPEATS} times")
+            stuck = call.args.get("reason", "") if call.name == "escalate" else None
+            if stuck is None:
+                key = (call.name, call.args.get("ref") and snap.elements.get(call.args["ref"]) and
+                       snap.elements[call.args["ref"]].css_path, call.args.get("text") or call.args.get("option"))
+                recent_actions = (recent_actions + [key])[-MAX_REPEATS:]
+                if len(recent_actions) == MAX_REPEATS and len(set(recent_actions)) == 1:
+                    stuck = f"stuck: repeated {call.name} on the same target {MAX_REPEATS} times"
+            if stuck is not None:
+                resumed = self._human_unsticks(trace, f"step{i}", stuck, history)
+                if resumed is None:
+                    self._shot(trace, "escalate")
+                    return self._finish(trace, "escalated", stuck)
+                snap, recent_actions, no_change, errors = resumed, [], 0, 0
+                continue
 
             try:
                 step, after = self._act(i, call, snap)
             except ApprovalRequired as e:
-                # The gate, not the model, decided this needs a person. Discovery stops here.
-                self._shot(trace, "approval-required")
-                return self._finish(trace, "escalated", f"needs human approval: {e}")
+                # The gate, not the model, decided this needs a person.
+                it = self._ask_human(trace, "approval", f"step{i}", str(e), control=e.request.control)
+                if it is not None and it.resolution == "approved":
+                    step, after = self._act(i, call, snap)  # the gate lets the approved control through once
+                elif it is not None and it.resolution == "resumed":
+                    snap, recent_actions, no_change, errors = self._after_human(it, trace, history), [], 0, 0
+                    continue
+                else:
+                    self._shot(trace, "approval-required")
+                    return self._finish(trace, "escalated", f"needs human approval: {e}"
+                                        + (f" (operator: {it.resolution})" if it is not None else ""))
             trace.steps.append(step)
             history.append(self._history_line(step, snap, after))
             errors = 0 if step.ok else errors + 1
-            if errors >= MAX_CONSECUTIVE_ERRORS:
-                return self._finish(trace, "escalated", f"stuck: {errors} failed actions in a row, last: {step.error}")
             no_change = no_change + 1 if (after.fingerprint == snap.fingerprint and call.name != "extract") else 0
-            if no_change >= MAX_NO_CHANGE:
-                return self._finish(trace, "escalated", f"stuck: screen unchanged after {no_change} actions")
+            stuck = (f"stuck: {errors} failed actions in a row, last: {step.error}" if errors >= MAX_CONSECUTIVE_ERRORS
+                     else f"stuck: screen unchanged after {no_change} actions" if no_change >= MAX_NO_CHANGE else None)
+            if stuck is not None:
+                resumed = self._human_unsticks(trace, f"step{i}", stuck, history)
+                if resumed is None:
+                    return self._finish(trace, "escalated", stuck)
+                after, recent_actions, no_change, errors = resumed, [], 0, 0
             snap = after
 
         self._shot(trace, "max-steps")
         return self._finish(trace, "escalated", f"stuck: reached max steps ({self.max_steps})")
+
+    # ---- human in the loop ------------------------------------------------------
+
+    def _ask_human(self, trace: Trace, kind: str, label: str, reason: str, control: str | None = None) -> Intervention | None:
+        if self.handoff is None or len(trace.handoffs) >= self.max_handoffs:
+            return None
+        it = self.handoff.escalate(kind, trace.goal, label, reason, control)
+        trace.handoffs.append({"id": it.id, "kind": kind, "step": label, "resolution": it.resolution,
+                               "operator": it.operator, "human_actions": len(it.human_actions)})
+        return it
+
+    def _human_unsticks(self, trace: Trace, label: str, reason: str, history: list[str]) -> Snapshot | None:
+        """Stuck: hand the live session to a person. Returns the screen to carry on from, or None."""
+        it = self._ask_human(trace, "stuck", label, reason)
+        if it is None or it.resolution != "resumed":
+            return None
+        return self._after_human(it, trace, history)
+
+    def _after_human(self, it: Intervention, trace: Trace, history: list[str]) -> Snapshot:
+        self.handoff.verified(True, "discovery re-observes and continues from where the operator left the app")
+        trace.human_actions += len(it.human_actions)
+        did = ", ".join(f"{a.get('kind')} {a.get('name') or a.get('label') or a.get('tag')}" for a in it.human_actions)
+        history.append(self.redactor.text(f"  (a human operator took control and did: {did or 'nothing'}; then handed back)"))
+        return self.surface.observe()
 
     def _act(self, i: int, call: ToolCall, snap: Snapshot) -> tuple[TraceStep, Snapshot]:
         ref = call.args.get("ref", "")

@@ -40,6 +40,9 @@ class Provenance(BaseModel):
     discovery_run: str
     model: str
     evidence_path: str
+    approvals: int = 0      # irreversible actions a human approved during discovery
+    human_actions: int = 0  # actions a human performed during discovery. Not captured as steps:
+                            # if non-zero, a reviewer must check the flow is complete.
 
 
 class InputSpec(BaseModel):

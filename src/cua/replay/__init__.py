@@ -1,9 +1,9 @@
 from cua.replay.executor import ReplayExecutor
 from cua.replay.result import (
-    Recovery, ReplayBusinessOutcome, ReplayEscalated, ReplayFailure, ReplayResult, ReplaySuccess,
+    HandoffSummary, Recovery, ReplayBusinessOutcome, ReplayEscalated, ReplayFailure, ReplayResult, ReplaySuccess,
 )
 
 __all__ = [
-    "Recovery", "ReplayBusinessOutcome", "ReplayEscalated", "ReplayExecutor", "ReplayFailure",
+    "HandoffSummary", "Recovery", "ReplayBusinessOutcome", "ReplayEscalated", "ReplayExecutor", "ReplayFailure",
     "ReplayResult", "ReplaySuccess",
 ]

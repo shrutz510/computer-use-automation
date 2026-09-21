@@ -1,0 +1,33 @@
+{
+  "run_id": "replay-20260921-135459-c649",
+  "capability": "legacycore.open_sub_account",
+  "version": 1,
+  "evidence": "evidence/replay/replay-20260921-135459-c649",
+  "steps_completed": 9,
+  "recovered": [],
+  "strategies_used": {
+    "s1_type_member_id": "label#0",
+    "s2_click_search": "role#0",
+    "s3_click_open_sub_account": "role#0",
+    "s4_select_account_type": "label#0",
+    "s5_type_nickname": "label#0",
+    "s6_type_initial_deposit": "label#0",
+    "s7_click_continue": "role#0",
+    "s8_click_confirm": "role#0",
+    "s9_extract_new_account_number": "cell#0"
+  },
+  "handoffs": [
+    {
+      "id": "int-84bef3",
+      "kind": "approval",
+      "step": "s8_click_confirm",
+      "resolution": "approved",
+      "operator": "shruti-sim",
+      "human_actions": 0
+    }
+  ],
+  "status": "success",
+  "outputs": {
+    "new_account_number": "[REDACTED]"
+  }
+}

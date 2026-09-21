@@ -37,6 +37,12 @@ def _slug(text: str, limit: int = 24) -> str:
     return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", text.lower())).strip("_")[:limit] or "step"
 
 
+def _quoted(description: str) -> str:
+    """'combobox "Account Type"' -> 'Account Type': a name for controls that have no text of their own."""
+    match = re.search(r'"([^"]*)"', description or "")
+    return match.group(1) if match else ""
+
+
 def _input_spec(value: str) -> InputSpec:
     if re.fullmatch(r"\d+", value):
         return InputSpec(type="string", pattern=f"^\\d{{{len(value)}}}$", example=value)
@@ -93,7 +99,8 @@ def record(trace: Trace, pack: AppPack, name: str | None = None, version: int = 
 
         risk = click_risk(step.element_name or "", step.element_form_method or "") if action == "click" else "safe"
         risks.append(risk)
-        step_id = f"s{len(steps) + 1}_{action}_{_slug(step.element_name or step.param_name or step.output_name or '')}"
+        label = step.element_name or step.param_name or step.output_name or _quoted(step.target.description)
+        step_id = f"s{len(steps) + 1}_{action}_{_slug(label)}"
         checkpoint = _checkpoint(step.frames_before, step.frames_after,
                                  [s.value for s in trace.steps if s.param_name and s.value])
         if action == "extract" and step.output_name:
@@ -125,7 +132,9 @@ def record(trace: Trace, pack: AppPack, name: str | None = None, version: int = 
         risk_level=highest(risks),
         provenance=Provenance(recorded_at=datetime.now(timezone.utc).isoformat(timespec="seconds"), goal=trace.goal,
                               discovery_run=trace.run_id, model=trace.model,
-                              evidence_path=evidence_path or f"evidence/discovery/{trace.run_id}"),
+                              evidence_path=evidence_path or f"evidence/discovery/{trace.run_id}",
+                              approvals=sum(1 for h in trace.handoffs if h.get("resolution") == "approved"),
+                              human_actions=trace.human_actions),
     )
     return CapabilityArtifact(
         capability=capability, entry=trace.entry_route, inputs=inputs, outputs=outputs, steps=steps,

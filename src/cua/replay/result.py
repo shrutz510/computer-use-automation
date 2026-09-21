@@ -21,6 +21,18 @@ class Recovery(BaseModel):
     detail: str = ""
 
 
+class HandoffSummary(BaseModel):
+    """A human stepped in during this run. Full request, history and actions:
+    <evidence>/interventions/<id>.json."""
+
+    id: str
+    kind: str        # approval | stuck
+    step: str
+    resolution: str  # approved | resumed | aborted | timeout
+    operator: str | None = None
+    human_actions: int = 0
+
+
 class _Base(BaseModel):
     run_id: str
     capability: str
@@ -30,6 +42,7 @@ class _Base(BaseModel):
     recovered: list[Recovery] = []
     # Which locator strategy won per step. A fallback winning is the drift signal.
     strategies_used: dict[str, str] = {}
+    handoffs: list[HandoffSummary] = []
 
 
 class ReplaySuccess(_Base):
