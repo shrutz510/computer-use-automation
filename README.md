@@ -51,7 +51,10 @@ Faults can be injected at startup (`--fault NAME`) or at runtime:
 ```bash
 curl -X POST localhost:5001/admin/fault -d name=interstitial   # also: slow, session_timeout, permission_denied, app_error
 curl -X POST localhost:5001/admin/fault -d name=              # clear
+curl -X POST localhost:5001/admin/reset                       # fresh seeded data, no restart
 ```
+
+`/admin/*` is denied by the policy, so the agent can never reach these hooks.
 
 ## Demo: a discovery run
 
@@ -120,8 +123,11 @@ The CLI refuses to start against a target the policy does not list:
 
 ```bash
 .venv/bin/cua replay $CAP --input member_id=10023 --url https://example.com
-# refusing to run against https://example.com: origin https://example.com is not allowlisted
+# refusing to run against https://example.com: origin https://example.com is not allowlisted (policies/legacycore.yaml)
 ```
+
+`--approve-irreversible` stands in for a human approving every irreversible step, for
+unattended demos; a real operator approves them one at a time (next section).
 
 ## Human in the loop
 
@@ -170,9 +176,11 @@ API and the live browser over CDP:
 ```
 
 Covers the target app's flows and faults, redaction, locator synthesis/resolution against
-hostile fixture HTML, trace → artifact recording, replay against the live app for every
-branch of the taxonomy (success, business outcome, recovered interstitial, recovered session
-expiry, hard failure, broken locator, escalation on an irreversible step), and the policy: route
+hostile fixture HTML, trace → artifact recording, replay against the live app (success,
+business outcome, recovered interstitial, recovered session expiry, hard failure, broken
+locator, unparseable output, missing output, rejected input, drift signal, escalation on an
+irreversible step — `ACTION_FAILED` and `SESSION_FAILED` are the two result codes with no
+test), and the policy: route
 rules, both enforcement layers, approval, and discovery obeying the gate (driven by a scripted
 stand-in for the LLM); and the handoff: the control state machine and lease, the console, and
 real approve / take-over / resume-without-finishing / abort handoffs on a live session for

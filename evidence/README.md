@@ -28,12 +28,12 @@ land mid-run.
 
 | Run | Input / fault | Result | Notes |
 |---|---|---|---|
-| [replay-20260917-153300-7d48](replay/replay-20260917-153300-7d48) | `member_id=10023` | `success`, `savings_balance=10527.64` | every step resolved on its preferred locator |
-| [replay-20260917-153325-4139](replay/replay-20260917-153325-4139) | `member_id=99999` | `business_outcome` `MEMBER_NOT_FOUND` | a legitimate answer, not a failure; stops after step 1 |
-| [replay-20260917-153530-bbf5](replay/replay-20260917-153530-bbf5) | interstitial | `success`, `recovered: system_notice` | `*-system_notice-detected.png` shows the blocking notice; acknowledged, then continued |
-| [replay-20260917-153534-2220](replay/replay-20260917-153534-2220) | session_timeout | `success`, `recovered: session_expired` | re-authenticated and restarted the flow |
-| [replay-20260917-153350-94f4](replay/replay-20260917-153350-94f4) | slow (2–5s per page) | `success` | waited on conditions; no status of its own |
-| [replay-20260917-153406-a427](replay/replay-20260917-153406-a427) | app_error | `failed` `APP_ERROR`, `retryable: true` | expected vs observed recorded, with a screenshot |
+| [replay-20260922-200740-b742](replay/replay-20260922-200740-b742) | `member_id=10023` | `success`, `savings_balance=10527.64` | every step resolved on its preferred locator |
+| [replay-20260922-200744-305e](replay/replay-20260922-200744-305e) | `member_id=99999` | `business_outcome` `MEMBER_NOT_FOUND` | a legitimate answer, not a failure; stops after step 1 |
+| [replay-20260922-200747-9ba2](replay/replay-20260922-200747-9ba2) | interstitial | `success`, `recovered: system_notice` | `*-system_notice-detected.png` shows the blocking notice; acknowledged, then continued |
+| [replay-20260922-200751-9776](replay/replay-20260922-200751-9776) | session_timeout | `success`, `recovered: session_expired` | re-authenticated and restarted the flow |
+| [replay-20260922-200756-8389](replay/replay-20260922-200756-8389) | slow (2–5s per page) | `success` | waited on conditions; no status of its own |
+| [replay-20260922-200812-2ba4](replay/replay-20260922-200812-2ba4) | app_error | `failed` `APP_ERROR`, `retryable: true` | expected vs observed recorded, with a screenshot |
 
 Recoverable conditions never appear as a status: they are handled inside the run and listed in
 `recovered`.

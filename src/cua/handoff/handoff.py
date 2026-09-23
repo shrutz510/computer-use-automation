@@ -3,8 +3,8 @@
 import secrets
 import sys
 
-from cua.evidence import RunLog
-from cua.handoff.control import Intervention, SessionControl, _now
+from cua.evidence import RunLog, capture, now_iso
+from cua.handoff.control import Intervention, SessionControl
 from cua.redaction import Redactor
 from cua.surface import Surface
 
@@ -51,16 +51,11 @@ def request_record(log: RunLog, surface: Surface, redactor: Redactor, kind: str,
                    reason: str, control: str | None = None) -> Intervention:
     """The intervention request itself: capability/goal, step, why, where, what it looks like,
     and what just happened. Also written when no operator is attached, as a queued request."""
-    shot_path = log.screenshot_path(f"{step}-intervention")
-    try:
-        surface.screenshot(shot_path)
-        shot = log.rel(shot_path)
-    except Exception:  # evidence must never break a run
-        shot = None
+    shot = capture(log, surface, f"{step}-intervention")
     try:
         where = "; ".join(f"{f.name or 'top'}:{f.url}" for f in surface.observe().frames)
     except Exception:
         where = "unknown"
     return Intervention(id=f"int-{secrets.token_hex(3)}", kind=kind, run_id=log.run_id, subject=subject, step=step,
                         reason=redactor.text(reason), url=where, screenshot=shot, recent_events=list(log.recent),
-                        created_at=_now(), control=control)
+                        created_at=now_iso("seconds"), control=control)

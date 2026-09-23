@@ -11,9 +11,9 @@ from playwright.sync_api import Frame, Locator, Page, Request, Route
 from cua.redaction import DEFAULT_SENSITIVE_LABELS
 from cua.surface.base import ControlInfo, Element, FrameView, Resolved, Snapshot, SurfaceError, TargetNotFound
 
-RequestPolicy = Callable[[str, str, bool], str | None]  # (url, method, is_navigation) -> violation or None
 from cua.surface.targets import CellStrategy, CssStrategy, LabelStrategy, RoleStrategy, Strategy, Target
 
+RequestPolicy = Callable[[str, str, bool], str | None]  # (url, method, is_navigation) -> violation or None
 ACTION_TIMEOUT_MS = 5_000
 SETTLE_TIMEOUT_S = 15.0
 SETTLE_GRACE_S = 0.3   # give an action time to start its navigation/requests
@@ -234,7 +234,9 @@ class WebSurface:
                     self._inflight == 0 or quiet_for >= SETTLE_STALE_S):
                 break
         for frame in self.page.frames:
-            remaining_ms = max(0.0, deadline - time.monotonic()) * 1000
+            # Never 0: Playwright reads that as "no timeout", which would turn an exhausted
+            # budget into an unbounded wait and defeat every timeout above this one.
+            remaining_ms = max(250.0, (deadline - time.monotonic()) * 1000)
             try:
                 frame.wait_for_load_state("load", timeout=remaining_ms)
             except PlaywrightError:
@@ -243,14 +245,12 @@ class WebSurface:
     # ---- observation ------------------------------------------------------
 
     def observe(self) -> Snapshot:
-        for attempt in range(3):
+        for _ in range(2):
             try:
                 return self._observe_once()
             except PlaywrightError:
-                if attempt == 2:
-                    raise
                 self._settle()  # a frame navigated mid-snapshot; try again
-        raise AssertionError("unreachable")
+        return self._observe_once()
 
     def _observe_once(self) -> Snapshot:
         frames: list[FrameView] = []
@@ -360,7 +360,7 @@ class WebSurface:
             raise SurfaceError(f"inspect failed: {str(e).splitlines()[0]}") from e
         return ControlInfo(**info)
 
-    def click(self, handle: Locator, risk_hint: str = "safe") -> None:  # risk_hint is for the policy gate
+    def click(self, handle: Locator) -> None:
         try:
             handle.click(timeout=ACTION_TIMEOUT_MS)
         except PlaywrightError as e:

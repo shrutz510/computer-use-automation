@@ -51,13 +51,15 @@ It is a **capability contract, not a step list**: typed `inputs` (with patterns)
 provenance). A caller can decide whether to invoke it, and what it returns, without reading a
 step.
 
-- **Targets are multi-strategy, ordered by robustness**: role + name → visible label → table
-  row/column → scoped CSS → positional path. Every candidate is validated *live at record time*
-  and kept only if it matches exactly one element — the one acted on. Cells are never addressed
-  by their own text: that is data, not identity.
-- **No concrete values in steps.** Flagged values become `{{inputs.x}}`, routes containing them
-  are canonicalized (`/members/10023` → `^/members/[^/]+$`), and the description is generalized
-  too. The recorded value survives only as `inputs.*.example` and in provenance.
+- **Targets are multi-strategy, ordered by robustness.** A control records role + name →
+  visible label → scoped CSS (`form[action=…] input[name=…]`) → positional path; a data cell
+  records row/column header → positional path. Every candidate is validated *live at record
+  time* and kept only if it matches exactly one element — the one acted on. Cells are never
+  addressed by their own text: that is data, not identity.
+- **Values the model flagged never stay in a step.** They become `{{inputs.x}}`, routes
+  containing them are canonicalized (`/members/10023` → `^/members/[^/]+$`, whole segments
+  only), and the description is generalized too; the value survives as `inputs.*.example` and
+  in provenance. What the model does *not* flag stays literal — see the limit below.
 - **A checkpoint per step**, derived from the state the app actually reached, so replay verifies
   instead of assuming.
 - **The error taxonomy lives in the artifact.** Detectors come from a per-app pack
@@ -95,9 +97,10 @@ for the checkpoint → verify the success condition.
   fallback winning is logged as `drift_signal`; the version fingerprint is the hook for the
   version check.
 
-Every branch is covered against the live app — success, business outcome, recovered interstitial,
-recovered session expiry, hard failure, broken locator, policy violation, escalation — in 66
-tests that need no API key.
+Covered against the live app in 69 tests that need no API key: success, business outcome,
+recovered interstitial, recovered session expiry, hard failure, broken locator, unparseable and
+missing outputs, rejected input, drift signal, policy violation and escalation. `ACTION_FAILED`
+and `SESSION_FAILED` are the two result codes without a test.
 
 ## 4. Heterogeneity & multi-tenant
 

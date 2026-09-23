@@ -2,6 +2,7 @@
 Everything written here goes through the Redactor first."""
 
 import json
+import re
 import secrets
 from collections import deque
 from datetime import datetime, timezone
@@ -11,8 +12,8 @@ from typing import Any
 from cua.redaction import Redactor
 
 
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+def now_iso(timespec: str = "milliseconds") -> str:
+    return datetime.now(timezone.utc).isoformat(timespec=timespec)
 
 
 class RunLog:
@@ -27,7 +28,7 @@ class RunLog:
 
     def event(self, type_: str, **data: Any) -> None:
         self._seq += 1
-        envelope = {"ts": _now(), "run_id": self.run_id, "seq": self._seq, "type": type_}
+        envelope = {"ts": now_iso(), "run_id": self.run_id, "seq": self._seq, "type": type_}
         # The envelope always wins: a payload field called "type" or "ts" must not relabel an event.
         record = {**envelope, **{k: v for k, v in self.redactor.scrub(data).items() if k not in envelope}}
         self._events.write(json.dumps(record, default=str) + "\n")
@@ -48,3 +49,14 @@ class RunLog:
 
     def close(self) -> None:
         self._events.close()
+
+
+def capture(log: RunLog, surface, label: str) -> str | None:
+    """Screenshot into the run's evidence directory. Evidence must never break a run."""
+    path = log.screenshot_path(re.sub(r"[^a-z0-9._-]+", "-", label.lower()))
+    try:
+        surface.screenshot(path)
+    except Exception as e:
+        log.event("screenshot_failed", error=str(e))
+        return None
+    return log.rel(path)

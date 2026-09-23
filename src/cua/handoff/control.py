@@ -17,10 +17,10 @@ import secrets
 import threading
 import time
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Callable
 
+from cua.evidence import now_iso
 from cua.surface import ApprovalRequest
 
 
@@ -41,10 +41,6 @@ ALLOWED = {
 
 class ControlError(Exception):
     pass
-
-
-def _now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 @dataclass
@@ -106,7 +102,8 @@ class SessionControl:
                 if self.current is not None and self.current.resolution:
                     return self.current.resolution
                 if time.monotonic() >= deadline:
-                    self.current.resolution = "timeout"
+                    if self.current is not None:
+                        self.current.resolution = "timeout"
                     self._lease = None
                     self._move(Controller.AUTOMATION, "automation", "no operator acted in time")
                     return "timeout"
@@ -130,7 +127,7 @@ class SessionControl:
         with self._cond:
             if self.state != Controller.HUMAN_CONTROL or self.current is None:
                 return  # the automation's own clicks fire the same DOM events; only count the human's
-            action = {"ts": _now(), **action}
+            action = {"ts": now_iso("seconds"), **action}
             self.current.human_actions.append(action)
             callback = self.on_human_action
         if callback is not None:
@@ -156,7 +153,7 @@ class SessionControl:
             if self.state == Controller.HUMAN_CONTROL:
                 if time.monotonic() < self._lease_expires:
                     raise ControlError(f"already claimed by {it.operator}")
-                it.history.append({"ts": _now(), "event": "lease expired; re-claimed", "actor": operator})
+                it.history.append({"ts": now_iso("seconds"), "event": "lease expired; re-claimed", "actor": operator})
             elif self.state != Controller.AWAITING_HUMAN:
                 raise ControlError(f"cannot claim while {self.state.value}")
             self._lease = secrets.token_urlsafe(16)
@@ -210,7 +207,7 @@ class SessionControl:
         if to not in ALLOWED[self.state]:
             raise ControlError(f"illegal transition {self.state.value} -> {to.value}")
         if self.current is not None:
-            self.current.history.append({"ts": _now(), "from": self.state.value, "to": to.value,
+            self.current.history.append({"ts": now_iso("seconds"), "from": self.state.value, "to": to.value,
                                          "actor": actor, "note": note})
         self.state = to
         self._cond.notify_all()

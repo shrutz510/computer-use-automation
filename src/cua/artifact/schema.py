@@ -15,14 +15,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from cua.policy import Risk  # the same risk vocabulary the gate enforces at runtime
 from cua.surface.targets import Target
 from cua.values import OutputType
 
 SCHEMA_VERSION = "1.0"
 
 ActionType = Literal["type", "select", "click", "extract"]
-Risk = Literal["safe", "reversible", "irreversible"]
-Surface = Literal["web", "legacy_web", "desktop"]
+SurfaceKind = Literal["web", "legacy_web", "desktop"]  # not cua.surface.Surface, which is the protocol
 Status = Literal["draft", "approved", "deprecated"]
 
 
@@ -31,7 +31,7 @@ class AppInfo(BaseModel):
     vendor: str
     product: str
     version_fingerprint: str | None = None  # text that identifies the app version, for drift checks
-    surface: Surface = "legacy_web"
+    surface: SurfaceKind = "legacy_web"
 
 
 class Provenance(BaseModel):
@@ -90,11 +90,11 @@ class RecoverableHandler(BaseModel):
 
 
 class BusinessOutcome(BaseModel):
-    """A legitimate answer for the caller (e.g. no such member), never a crash."""
+    """A legitimate answer for the caller (e.g. no such member), never a crash.
+    No `retryable`: retrying cannot turn one business answer into another."""
 
     code: str
     when: Condition
-    retryable: bool = False
 
 
 class HardFailure(BaseModel):

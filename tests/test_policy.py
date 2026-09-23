@@ -104,7 +104,7 @@ def link(surface, name):
     return surface.inner.page.get_by_role("link", name=name, exact=True)
 
 
-def test_link_to_another_origin_is_refused_before_clicking(make_surface, served):
+def test_link_to_another_origin_is_refused_before_clicking(make_surface):
     surface = make_surface()
     with pytest.raises(PolicyBlocked, match="evil.test"):
         surface.click(link(surface, "Other site"))

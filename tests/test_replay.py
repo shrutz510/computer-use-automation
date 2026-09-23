@@ -4,6 +4,7 @@ These drive the artifact that discovery actually recorded, so a recording that c
 replayed fails the suite.
 """
 
+import json
 from decimal import Decimal
 from pathlib import Path
 
@@ -53,6 +54,7 @@ def replay(live_app, browser, tmp_path):
             log.close()
             page.close()
             app.config["FAULT"] = None
+            run.evidence = log.dir  # the last run's evidence directory, for assertions
 
     return run
 
@@ -78,6 +80,32 @@ def test_input_that_breaks_the_contract_is_rejected_before_acting(replay):
     result = replay({"member_id": "123"})
     assert (result.status, result.code) == ("failed", "INPUT_INVALID")
     assert result.steps_completed == 0
+    written = json.loads((replay.evidence / "result.json").read_text())  # evidence, like any other status
+    assert written["code"] == "INPUT_INVALID"
+
+
+def test_unparseable_output_is_a_failure_with_context(replay):
+    artifact = store.load(ARTIFACT)
+    artifact.steps[2].parse = "integer"  # the balance cell holds "$10,527.64"
+    result = replay({"member_id": "10023"}, artifact=artifact)
+    assert (result.status, result.code, result.step) == ("failed", "PARSE_ERROR", "s3_extract_savings_balance")
+
+
+def test_a_declared_output_that_never_arrives_fails_the_run(replay):
+    artifact = store.load(ARTIFACT)
+    artifact.steps = artifact.steps[:2]  # contract still promises savings_balance
+    result = replay({"member_id": "10023"}, artifact=artifact)
+    assert (result.status, result.code) == ("failed", "OUTPUT_MISSING")
+
+
+def test_a_fallback_locator_winning_is_logged_as_drift(replay):
+    artifact = store.load(ARTIFACT)
+    artifact.steps[1].target.strategies[0].name = "Find"  # the preferred strategy stops matching
+    result = replay({"member_id": "10023"}, artifact=artifact)
+    assert result.status == "success"  # the CSS fallback still resolves, so the run completes
+    assert result.strategies_used["s2_click_search"] == "css#1"
+    events = [json.loads(line) for line in (replay.evidence / "events.jsonl").read_text().splitlines()]
+    assert [e["step"] for e in events if e["type"] == "drift_signal"] == ["s2_click_search"]
 
 
 def test_interstitial_is_recovered_inside_the_run(replay):

@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from cua.artifact.schema import CapabilityArtifact, Condition, RecoverableHandler, Step
-from cua.evidence import RunLog
+from cua.evidence import RunLog, capture
 from cua.handoff import Handoff, request_record
 from cua.redaction import Redactor
 from cua.replay.result import (
@@ -76,18 +76,22 @@ class ReplayExecutor:
         cap = self.artifact.capability
         self.log.event("replay_started", capability=cap.id, version=cap.version, inputs=raw_inputs,
                        artifact_status=cap.status, risk_level=cap.risk_level)
+        result = self._run(raw_inputs)
+        # Every terminal status leaves the same evidence behind, rejected inputs included.
+        self.log.event("replay_finished",
+                       **result.model_dump(mode="json", exclude={"recovered", "strategies_used", "handoffs"}))
+        self.log.write_json("result.json", result.model_dump(mode="json"))
+        return result
+
+    def _run(self, raw_inputs: dict[str, str]) -> ReplayResult:
         try:
             inputs = self._validate_inputs(raw_inputs)
         except ValueError as e:
             return self._fail("INPUT_INVALID", None, expected=str(e), observed=repr(raw_inputs))
-
         while True:
             result = self._execute(inputs)
-            if result is RESTART:
-                continue
-            self.log.event("replay_finished", **result.model_dump(mode="json", exclude={"recovered", "strategies_used"}))
-            self.log.write_json("result.json", result.model_dump(mode="json"))
-            return result
+            if result is not RESTART:
+                return result
 
     # ---- the flow --------------------------------------------------------
 
@@ -97,7 +101,7 @@ class ReplayExecutor:
         try:
             self.surface.goto(self.artifact.entry)
         except PolicyBlocked as e:
-            return self._fail("POLICY_VIOLATION", None, expected=f"an allowlisted entry route", observed=e.reason)
+            return self._fail("POLICY_VIOLATION", None, expected="an allowlisted entry route", observed=e.reason)
         except SurfaceError as e:
             return self._fail("SESSION_FAILED", None, expected=f"entry {self.artifact.entry}", observed=str(e))
 
@@ -111,7 +115,7 @@ class ReplayExecutor:
 
     def _run_with_handoff(self, step: Step, inputs: dict[str, Any], outputs: dict[str, Any]) -> ReplayResult | object | None:
         while True:
-            snap, verdict = self._classified_state(step.id)
+            _, verdict = self._classified_state(step.id)
             if verdict is not None:
                 return verdict
             outcome = self._run_step(step, inputs, outputs)
@@ -273,7 +277,7 @@ class ReplayExecutor:
             elif handler.do == "reauthenticate":
                 if self.artifact.capability.risk_level == "irreversible":
                     return self._escalate(f"session expired during an irreversible flow ({handler.id})", step_id)
-                if self._restarts >= 1:
+                if self._restarts >= 1:  # reachable when a pack allows more than one re-auth
                     return self._fail("SESSION_FAILED", step_id, expected="an authenticated session",
                                       observed="session expired again after re-authenticating")
                 self.session.sign_in(self.surface)
@@ -384,10 +388,4 @@ class ReplayExecutor:
                                screenshot=screenshot or self._shot(f"{step or 'run'}-escalated"), **self._common())
 
     def _shot(self, label: str) -> str | None:
-        path = self.log.screenshot_path(re.sub(r"[^a-z0-9._-]+", "-", label.lower()))
-        try:
-            self.surface.screenshot(path)
-        except Exception as e:  # evidence must never break a run
-            self.log.event("screenshot_failed", error=str(e))
-            return None
-        return self.log.rel(path)
+        return capture(self.log, self.surface, label)

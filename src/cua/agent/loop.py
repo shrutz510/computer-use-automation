@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from cua.agent.llm import Decider, DeciderError, ToolCall
 from cua.agent.tools import SYSTEM_PROMPT, TOOLS
 from cua.agent.trace import FrameState, Trace, TraceStep
-from cua.evidence import RunLog
+from cua.evidence import RunLog, capture
 from cua.handoff import Handoff, Intervention
 from cua.redaction import Redactor
 from cua.surface import ApprovalRequired, PolicyBlocked, Snapshot, Surface, SurfaceError
@@ -74,7 +74,7 @@ class DiscoveryAgent:
             self.log.event("decision", step=i, tool=call.name, args=call.args, screen=snap.fingerprint)
 
             if call.name == "done":
-                self._shot(trace, "done")
+                self._shot("done")
                 return self._finish(trace, "success", call.args.get("summary", ""))
 
             stuck = call.args.get("reason", "") if call.name == "escalate" else None
@@ -87,7 +87,7 @@ class DiscoveryAgent:
             if stuck is not None:
                 resumed = self._human_unsticks(trace, f"step{i}", stuck, history)
                 if resumed is None:
-                    self._shot(trace, "escalate")
+                    self._shot("escalate")
                     return self._finish(trace, "escalated", stuck)
                 snap, recent_actions, no_change, errors = resumed, [], 0, 0
                 continue
@@ -103,7 +103,7 @@ class DiscoveryAgent:
                     snap, recent_actions, no_change, errors = self._after_human(it, trace, history), [], 0, 0
                     continue
                 else:
-                    self._shot(trace, "approval-required")
+                    self._shot("approval-required")
                     return self._finish(trace, "escalated", f"needs human approval: {e}"
                                         + (f" (operator: {it.resolution})" if it is not None else ""))
             trace.steps.append(step)
@@ -119,7 +119,7 @@ class DiscoveryAgent:
                 after, recent_actions, no_change, errors = resumed, [], 0, 0
             snap = after
 
-        self._shot(trace, "max-steps")
+        self._shot("max-steps")
         return self._finish(trace, "escalated", f"stuck: reached max steps ({self.max_steps})")
 
     # ---- human in the loop ------------------------------------------------------
@@ -183,7 +183,7 @@ class DiscoveryAgent:
             step.ok, step.error = False, str(e)
         after = self.surface.observe()
         step.frames_after = _frames(after)
-        step.screenshot = self._shot(None, f"step{i:02d}-{call.name}")
+        step.screenshot = self._shot(f"step{i:02d}-{call.name}")
         self.log.event("action", step=i, tool=call.name, target=step.target.model_dump() if step.target else None,
                        value=step.value, param_name=step.param_name, output_name=step.output_name,
                        ok=step.ok, error=step.error, rationale=step.rationale, screen_after=after.fingerprint)
@@ -202,14 +202,8 @@ class DiscoveryAgent:
             line += "  => ok, now at " + ", ".join(f"{f.name or 'top'}:{f.url}" for f in after.frames)
         return self.redactor.text(line)
 
-    def _shot(self, trace: Trace | None, label: str) -> str | None:
-        path = self.log.screenshot_path(label)
-        try:
-            self.surface.screenshot(path)
-        except Exception as e:  # evidence must never break the run
-            self.log.event("screenshot_failed", error=str(e))
-            return None
-        return self.log.rel(path)
+    def _shot(self, label: str) -> str | None:
+        return capture(self.log, self.surface, label)
 
     def _finish(self, trace: Trace, status: str, reason: str) -> Trace:
         trace.status = status  # type: ignore[assignment]

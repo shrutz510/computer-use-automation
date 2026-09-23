@@ -44,6 +44,8 @@ def _quoted(description: str) -> str:
 
 
 def _input_spec(value: str) -> InputSpec:
+    # Inferred from the one example the run happened to use, so the pattern is a first guess a
+    # reviewer tightens or loosens before approval - deliberately strict rather than permissive.
     if re.fullmatch(r"\d+", value):
         return InputSpec(type="string", pattern=f"^\\d{{{len(value)}}}$", example=value)
     if re.fullmatch(r"\$?[\d,]+(\.\d{2})?", value):
@@ -56,16 +58,23 @@ def _changed_frames(before: list[FrameState], after: list[FrameState]) -> list[F
     return [f for f in after if was.get(f.name) != (f.url, f.title)]
 
 
-def _canonical_url(url: str, values: list[str]) -> str:
-    """/members/10023 -> ^/members/[^/]+$ so the checkpoint holds for any member."""
-    marked = url
-    for value in values:
-        if value:
-            marked = marked.replace(value, "\x00")
-    return "^" + "[^/]+".join(re.escape(part) for part in marked.split("\x00")) + "$"
+def _canonical_url(url: str, values: set[str]) -> str:
+    """/members/10023 -> ^/members/[^/]+$ so the checkpoint holds for any member.
+
+    Whole path segments and whole query values only: a parameter that happens to be a
+    substring of a fixed route (a nickname "new" against /accounts/new) must not rewrite it.
+    """
+    path, sep, query = url.partition("?")
+    pattern = "/".join("[^/]+" if segment in values else re.escape(segment) for segment in path.split("/"))
+    if sep:
+        escaped = re.escape(query)
+        for value in values:
+            escaped = escaped.replace(re.escape(value), "[^&]+")
+        pattern += re.escape("?") + escaped
+    return f"^{pattern}$"
 
 
-def _checkpoint(before: list[FrameState], after: list[FrameState], values: list[str]) -> Condition | None:
+def _checkpoint(before: list[FrameState], after: list[FrameState], values: set[str]) -> Condition | None:
     changed = _changed_frames(before, after)
     if not changed:
         return None  # e.g. typing into a field: nothing to verify beyond the field itself
@@ -78,6 +87,7 @@ def record(trace: Trace, pack: AppPack, name: str | None = None, version: int = 
     if trace.status != "success":
         raise ValueError(f"only a successful run can be recorded (status={trace.status})")
     click_risk = (policy or Policy()).click_risk  # the same rules the gate enforces at runtime
+    param_values = {s.value for s in trace.steps if s.param_name and s.value}
 
     steps: list[Step] = []
     inputs: dict[str, InputSpec] = {}
@@ -101,8 +111,7 @@ def record(trace: Trace, pack: AppPack, name: str | None = None, version: int = 
         risks.append(risk)
         label = step.element_name or step.param_name or step.output_name or _quoted(step.target.description)
         step_id = f"s{len(steps) + 1}_{action}_{_slug(label)}"
-        checkpoint = _checkpoint(step.frames_before, step.frames_after,
-                                 [s.value for s in trace.steps if s.param_name and s.value])
+        checkpoint = _checkpoint(step.frames_before, step.frames_after, param_values)
         if action == "extract" and step.output_name:
             outputs[step.output_name] = OutputSpec(type=_output_type(step.output_type), sensitive=step.element_sensitive,
                                                    source_step=step_id)

@@ -46,7 +46,7 @@
       "type": "object"
     },
     "BusinessOutcome": {
-      "description": "A legitimate answer for the caller (e.g. no such member), never a crash.",
+      "description": "A legitimate answer for the caller (e.g. no such member), never a crash.\nNo `retryable`: retrying cannot turn one business answer into another.",
       "properties": {
         "code": {
           "title": "Code",
@@ -54,11 +54,6 @@
         },
         "when": {
           "$ref": "#/$defs/Condition"
-        },
-        "retryable": {
-          "default": false,
-          "title": "Retryable",
-          "type": "boolean"
         }
       },
       "required": [

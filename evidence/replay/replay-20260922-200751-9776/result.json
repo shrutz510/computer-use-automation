@@ -1,15 +1,22 @@
 {
-  "run_id": "replay-20260917-153350-94f4",
+  "run_id": "replay-20260922-200751-9776",
   "capability": "legacycore.member_savings_balance",
   "version": 1,
-  "evidence": "evidence/replay/replay-20260917-153350-94f4",
+  "evidence": "evidence/replay/replay-20260922-200751-9776",
   "steps_completed": 3,
-  "recovered": [],
+  "recovered": [
+    {
+      "handler": "session_expired",
+      "step": "s1_type_member_id",
+      "detail": "re-authenticated and restarted the flow"
+    }
+  ],
   "strategies_used": {
     "s1_type_member_id": "label#0",
     "s2_click_search": "role#0",
     "s3_extract_savings_balance": "cell#0"
   },
+  "handoffs": [],
   "status": "success",
   "outputs": {
     "savings_balance": "10527.64"

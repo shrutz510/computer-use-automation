@@ -1,14 +1,15 @@
 {
-  "run_id": "replay-20260917-153325-4139",
+  "run_id": "replay-20260922-200744-305e",
   "capability": "legacycore.member_savings_balance",
   "version": 1,
-  "evidence": "evidence/replay/replay-20260917-153325-4139",
+  "evidence": "evidence/replay/replay-20260922-200744-305e",
   "steps_completed": 1,
   "recovered": [],
   "strategies_used": {
     "s1_type_member_id": "label#0",
     "s2_click_search": "role#0"
   },
+  "handoffs": [],
   "status": "business_outcome",
   "code": "MEMBER_NOT_FOUND",
   "message": "No member found for ID 99999",

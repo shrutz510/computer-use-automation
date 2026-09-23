@@ -15,7 +15,7 @@ capability:
     surface: legacy_web
   risk_level: irreversible
   provenance:
-    recorded_at: '2026-09-21T17:51:19+00:00'
+    recorded_at: '2026-09-23T00:07:27+00:00'
     goal: For member 10023, open a new Money Market sub-account nicknamed Rainy Day with an initial deposit
       of 250.00, and return the new account number from the confirmation screen
     discovery_run: discovery-20260921-134651-76c5
@@ -100,7 +100,7 @@ steps:
   checkpoint:
     frame: content
     title: Open Sub-Account
-    url_matches: ^/accounts/new\?mid=[^/]+$
+    url_matches: ^/accounts/new\?mid=[^&]+$
 - id: s4_select_account_type
   action: select
   target:
@@ -228,19 +228,15 @@ detectors:
   - code: MEMBER_NOT_FOUND
     when:
       text_visible: No member found
-    retryable: false
   - code: MEMBER_NOT_ELIGIBLE
     when:
       text_visible: not eligible for new sub-accounts
-    retryable: false
   - code: INPUT_REJECTED
     when:
       text_visible: Member ID must be
-    retryable: false
   - code: DEPOSIT_OUT_OF_RANGE
     when:
       text_visible: Initial deposit must be
-    retryable: false
   hard_failures:
   - code: APP_ERROR
     when:

@@ -11,6 +11,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 
@@ -59,8 +60,12 @@ def click_in_live_session(cdp_url: str, button: str, frame: str | None = "conten
         browser = pw.chromium.connect_over_cdp(cdp_url)
         page = next(p for c in browser.contexts for p in c.pages if p.url.startswith("http"))
         target = (page.frame(name=frame) if frame else None) or page.main_frame
-        target.get_by_role("button", name=button, exact=True).click()
-        page.wait_for_timeout(1000)  # let the navigation the click started land before resuming
+        # Wait on the navigation the click starts, so control is handed back on a settled page.
+        try:
+            with page.expect_event("framenavigated", timeout=5000):
+                target.get_by_role("button", name=button, exact=True).click()
+        except PlaywrightTimeout:
+            pass  # the control did not navigate; nothing to wait for
 
 
 def run_operator(console_url: str, mode: str, cdp_url: str | None = None, click: str | None = None,
